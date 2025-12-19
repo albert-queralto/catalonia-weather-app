@@ -1,14 +1,29 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
 import httpx
 
+from sqlalchemy import select, update
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.config import settings
-from app.services.forecast.schemas import ComarcaDailyPoint, ComarcaForecastResponse, ForecastResponse
+from app.services.forecast.schemas import (
+    ComarcaDailyPoint, 
+    ComarcaForecastResponse, 
+    ForecastResponse
+)
+from app.db.session import SessionLocal
+from app.db.models import (
+    MeteocatStation, 
+    StationMeasurement, 
+    StationVariable, 
+    StationVariableValue
+)
 
 
 def _parse_date(v) -> Optional[date]:
@@ -142,7 +157,7 @@ class MeteocatClient:
         return next((item for item in items if str(item.get(key)) == str(comarca_code)), None)
 
     async def fetch_station_metadata(
-        self, estat: str = "activa", data: Optional[str] = None
+        self, estat: str = "ope", data: Optional[str] = None
     ) -> list[dict]:
         """
         Fetches station metadata from Meteocat XEMA API.
@@ -161,10 +176,163 @@ class MeteocatClient:
             params["data"] = data
 
         url = f"{base_url}{endpoint}"
+        headers = {"x-api-key": settings.meteocat_api_key}
+        
         async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.get(url, params=params)
+            resp = await client.get(url, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
 
+    async def fetch_and_store_meteocat_stations(self, estat: str, data: str):
+        stations = await self.fetch_station_metadata(estat, data)
+
+        async with SessionLocal() as db:
+            for station in stations:
+                stmt = select(MeteocatStation).where(MeteocatStation.codi == station["codi"])
+                result = await db.execute(stmt)
+                existing = result.scalar_one_or_none()
+                if existing:
+                    # Update existing
+                    for field in [
+                        "nom", "tipus", "latitud", "longitud", "emplacament", "altitud",
+                        "municipi", "comarca", "provincia", "xarxa", "estats"
+                    ]:
+                        setattr(existing, field, station.get(field) if field in station else getattr(existing, field))
+                else:
+                    # Insert new
+                    obj = MeteocatStation(
+                        codi=station["codi"],
+                        nom=station["nom"],
+                        tipus=station["tipus"],
+                        latitud=station["coordenades"]["latitud"],
+                        longitud=station["coordenades"]["longitud"],
+                        emplacament=station.get("emplacament"),
+                        altitud=station.get("altitud"),
+                        municipi=station.get("municipi"),
+                        comarca=station.get("comarca"),
+                        provincia=station.get("provincia"),
+                        xarxa=station.get("xarxa"),
+                        estats=station.get("estats"),
+                    )
+                    db.add(obj)
+            await db.commit()
+            
+    async def fetch_station_measured_data(
+        self, codi_estacio: str, any: int, mes: int, dia: int
+    ) -> list[dict]:
+        """
+        Fetches measured data for a station for a specific day.
+        """
+        base_url = settings.meteocat_xema_base_url
+        endpoint = f"/estacions/mesurades/{codi_estacio}/{any}/{mes:02d}/{dia:02d}"
+        url = f"{base_url}{endpoint}"
+        headers = {"x-api-key": settings.meteocat_api_key}
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+
+    async def fetch_and_store_station_measured_data(self, codi_estacio: str, any: int, mes: int, dia: int):
+        data = await self.fetch_station_measured_data(codi_estacio, any, mes, dia)
+        if not data:
+            return
+
+        async with SessionLocal() as db:
+            for station in data:
+                measurement = StationMeasurement(
+                    codi_estacio=station["codi"],
+                    date=datetime(any, mes, dia),
+                )
+                db.add(measurement)
+                await db.flush()  # Get measurement.id
+
+                for var in station.get("variables", []):
+                    variable = StationVariable(
+                        measurement_id=measurement.id,
+                        codi=var["codi"],
+                        lectures=var["lectures"],
+                    )
+                    db.add(variable)
+            await db.commit()
+
+    async def fetch_and_store_station_variable_metadata(self, codi_estacio: str, estat: str = "ope", data: str = None):
+        # Fetch variable metadata from API
+        base_url = settings.meteocat_xema_base_url
+        endpoint = f"/estacions/{codi_estacio}/variables/mesurades/metadades"
+        params = {"estat": estat}
+        if data:
+            params["data"] = data
+        url = f"{base_url}{endpoint}"
+        headers = {"x-api-key": settings.meteocat_api_key}
+
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            variables = resp.json()
+
+        # Store variable metadata
+        async with SessionLocal() as db:
+            for var in variables:
+                # Upsert by codi
+                stmt = select(StationVariable).where(StationVariable.codi == var["codi"])
+                result = await db.execute(stmt)
+                existing = result.scalar_one_or_none()
+                if existing:
+                    # Update fields
+                    for field in ["nom", "unitat", "acronim", "tipus", "decimals", "estats", "bases_temporals"]:
+                        setattr(existing, field, var.get(field))
+                else:
+                    obj = StationVariable(
+                        codi=var["codi"],
+                        nom=var["nom"],
+                        unitat=var["unitat"],
+                        acronim=var["acronim"],
+                        tipus=var["tipus"],
+                        decimals=var["decimals"],
+                        estats=var["estats"],
+                        bases_temporals=var["basesTemporals"],
+                    )
+                    db.add(obj)
+            await db.commit()
+            
+    async def fetch_and_store_station_variable_values(self, codi_estacio: str, any: int, mes: int, dia: int):
+        # Fetch measured data
+        measured_data = await self.fetch_station_measured_data(codi_estacio, any, mes, dia)
+        if not measured_data:
+            return
+
+        def make_naive(dt: datetime) -> datetime:
+            if dt is not None and dt.tzinfo is not None:
+                return dt.replace(tzinfo=None)
+            return dt
+
+        async with SessionLocal() as db:
+            for station_data in measured_data:
+                # Create measurement record
+                measurement = StationMeasurement(
+                    codi_estacio=station_data["codi"],
+                    date=datetime(any, mes, dia),
+                )
+                db.add(measurement)
+                await db.flush()  # Get measurement.id
+
+                for var in station_data.get("variables", []):
+                    codi_variable = var["codi"]
+                    for lecture in var.get("lectures", []):
+                        valor = lecture.get("valor")
+                        data_lecture = lecture.get("data")
+                        dt = None
+                        if data_lecture:
+                            dt = datetime.fromisoformat(data_lecture.replace("Z", "+00:00"))
+                            dt = make_naive(dt)
+                        variable_value = StationVariableValue(
+                            measurement_id=measurement.id,
+                            codi_variable=codi_variable,
+                            valor=valor,
+                            data=dt,
+                        )
+                        db.add(variable_value)
+            await db.commit()
 
 meteocat_client = MeteocatClient()
