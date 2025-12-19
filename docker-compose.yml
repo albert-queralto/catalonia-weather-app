@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-weather}
+      POSTGRES_USER: ${POSTGRES_USER:-weather}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-weather}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-weather} -d ${POSTGRES_DB:-weather}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    command: ["bash", "-lc", "uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload"]
+
+  worker:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    depends_on:
+      - api
+      - rabbitmq
+      - redis
+    volumes:
+      - ./backend:/app
+    command: ["bash", "-lc", "celery -A app.workers.celery_app.celery_app worker -l INFO"]
+
+  beat:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    depends_on:
+      - api
+      - rabbitmq
+      - redis
+    volumes:
+      - ./backend:/app
+    command: ["bash", "-lc", "celery -A app.workers.celery_app.celery_app beat -l INFO"]
+
+  frontend:
+    build:
+      context: ./frontend
+    env_file:
+      - ./.env
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+    command: ["bash", "-lc", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
+
+  comarques-loader:
+    build:
+      context: ./backend
+    command: python scripts/load_comarcas.py
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-weather}
+      POSTGRES_USER: ${POSTGRES_USER:-weather}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-weather}
+    volumes:
+      - ./backend/scripts:/app/scripts
+      - ./backend/data:/app/data
+    restart: "no"
+
+volumes:
+  pgdata:
+  redisdata:
