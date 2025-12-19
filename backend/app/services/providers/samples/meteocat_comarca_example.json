@@ -1,0 +1,33 @@
+{
+  "comarca_code": "BAR",
+  "comarca_name": "Barcelon\u00e8s (sample payload)",
+  "daily": [
+    {
+      "date": "2025-12-18",
+      "tmax_c": 16,
+      "tmin_c": 9,
+      "pop": 25,
+      "precip_mm": 0.0,
+      "gust_m_s": 14,
+      "summary": "Mostly clear."
+    },
+    {
+      "date": "2025-12-19",
+      "tmax_c": 15,
+      "tmin_c": 8,
+      "pop": 40,
+      "precip_mm": 0.6,
+      "gust_m_s": 16,
+      "summary": "Cloudy with light showers."
+    },
+    {
+      "date": "2025-12-20",
+      "tmax_c": 14,
+      "tmin_c": 7,
+      "pop": 55,
+      "precip_mm": 1.5,
+      "gust_m_s": 18,
+      "summary": "More unsettled."
+    }
+  ]
+}
