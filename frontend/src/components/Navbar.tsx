@@ -18,9 +18,12 @@ export default function Navbar() {
           <Button color="inherit" component={Link} to="/air-quality-map">
             Air Quality Map
           </Button>
-          <Button color="inherit" component={Link} to="/forecast">
-            Forecast Products
+          <Button color="inherit" component={Link} to="/episodis-oberts">
+            Current Alerts
           </Button>
+          {/* <Button color="inherit" component={Link} to="/forecast">
+            Forecast Products
+          </Button> */}
           <Button color="inherit" component={Link} to="/modeling">
             Modeling
           </Button>

@@ -1,8 +1,8 @@
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, GeoJSON, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useState } from 'react';
 import { Box, Modal, Typography, Radio, RadioGroup, FormControlLabel, FormGroup, Button } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 // List of air quality parameters
 const AIR_QUALITY_PARAMS = [
@@ -52,6 +52,11 @@ const COLOR_BANDS: Record<string, {breaks: number[], colors: string[]}> = {
   }
 };
 
+function formatValue(val: any) {
+  if (val == null || isNaN(val)) return 'N/A';
+  return Number(val).toFixed(1);
+}
+
 function Legend({ param }: { param: string }) {
   const band = COLOR_BANDS[param] || COLOR_BANDS.default;
   return (
@@ -89,6 +94,13 @@ export default function AirQualityMap() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState<any[]>([]);
   const [modalLocation, setModalLocation] = useState<{lat: number, lon: number} | null>(null);
+  const [comarcasGeoJson, setComarcasGeoJson] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/v1/comarcas/geojson')
+      .then(res => res.json())
+      .then(setComarcasGeoJson);
+  }, []);
 
   // Fetch stations on mount
   useEffect(() => {
@@ -119,6 +131,16 @@ export default function AirQualityMap() {
         }
     }
     return band.colors[band.colors.length - 1];
+  }
+
+  function comarcaStyle() {
+    return {
+      fillColor: "transparent",
+      weight: 2,
+      opacity: 1,
+      color: "#333",
+      fillOpacity: 0,
+    };
   }
 
   // Handle marker click: fetch hourly data for that point
@@ -168,6 +190,9 @@ export default function AirQualityMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap contributors"
         />
+        {comarcasGeoJson && (
+          <GeoJSON data={comarcasGeoJson} style={comarcaStyle} />
+        )}
         {airQualityPoints.map((pt, idx) => (
           <CircleMarker
             key={`${pt.id || idx}-${selectedParam}`}
@@ -179,9 +204,13 @@ export default function AirQualityMap() {
               click: () => handleMarkerClick(pt),
             }}
           >
+            <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+              <strong>{pt.nom}</strong><br />
+              <strong>{AIR_QUALITY_PARAMS.find(p => p.key === selectedParam)?.label}:</strong> {formatValue(pt[selectedParam])}
+            </Tooltip>
             <Popup>
               <strong>{pt.nom}</strong><br />
-              <strong>{AIR_QUALITY_PARAMS.find(p => p.key === selectedParam)?.label}:</strong> {pt[selectedParam] ?? 'N/A'}
+              <strong>{AIR_QUALITY_PARAMS.find(p => p.key === selectedParam)?.label}:</strong> {formatValue(pt[selectedParam])}
             </Popup>
           </CircleMarker>
         ))}
@@ -200,7 +229,10 @@ export default function AirQualityMap() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" tickFormatter={d => d ? new Date(d).toLocaleString('es-ES', { hour12: false }) : ''} />
                 <YAxis />
-                <Tooltip labelFormatter={d => d ? new Date(d).toLocaleString('es-ES', { hour12: false }) : ''} />
+                <RechartsTooltip 
+                  labelFormatter={d => d ? new Date(d).toLocaleString('es-ES', { hour12: false }) : ''} 
+                  formatter={(value) => [formatValue(value), AIR_QUALITY_PARAMS.find(p => p.key === selectedParam)?.label]}
+                />
                 <Line type="monotone" dataKey={selectedParam} stroke="#1976d2" dot={false} />
                 {currentTimeISO && (
                 <ReferenceLine

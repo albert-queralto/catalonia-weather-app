@@ -4,12 +4,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import json
+import time
 
 from app.db.session import get_session
 from app.services.geo.schemas import ComarcaOut
 from app.services.geo.service import comarca_service
 
 router = APIRouter()
+_geojson_cache = {"data": None, "timestamp": 0}
+CACHE_TTL = 3600  # seconds
 
 
 @router.get("/comarcas", response_model=list[ComarcaOut])
@@ -45,6 +48,10 @@ async def lookup_comarca(
 
 @router.get("/comarcas/geojson")
 async def comarcas_geojson(session: AsyncSession = Depends(get_session)):
+    now = time.time()
+    if _geojson_cache["data"] and now - _geojson_cache["timestamp"] < CACHE_TTL:
+        return _geojson_cache["data"]
+
     result = await session.execute(
         text("SELECT code, name, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geojson FROM comarcas")
     )
@@ -58,7 +65,10 @@ async def comarcas_geojson(session: AsyncSession = Depends(get_session)):
                 "name": row.name,
             }
         })
-    return {
+    geojson = {
         "type": "FeatureCollection",
         "features": features
     }
+    _geojson_cache["data"] = geojson
+    _geojson_cache["timestamp"] = now
+    return geojson

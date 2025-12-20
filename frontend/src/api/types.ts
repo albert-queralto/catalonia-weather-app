@@ -56,3 +56,52 @@ export type RadarTimestamps = {
   provider: string
   timestamps: Array<{ time: number } | number>
 }
+
+
+export interface AvisAfectacio {
+  dia: string;
+  llindar: string | null;
+  auxiliar: boolean;
+  perill: number;
+  idComarca: number;
+  nivell: number;
+}
+
+export interface Periode {
+  nom: string;
+  afectacions: AvisAfectacio[] | null;
+}
+
+export interface Evolucio {
+  dia: string;
+  comentari: string | null;
+  representatiu: number;
+  llindar1: string | null;
+  llindar2: string | null;
+  distribucioGeografica: string | null;
+  periodes: Periode[];
+}
+
+export interface Avis {
+  tipus: string;
+  dataEmisio: string;
+  dataInici: string;
+  dataFi: string;
+  evolucions: Evolucio[];
+}
+
+export interface Meteor {
+  nom: string;
+}
+
+export interface Estat {
+  nom: string;
+  data: string | null;
+}
+
+export interface EpisodiObert {
+  estat: Estat;
+  meteor: Meteor;
+  avisos: Avis[];
+}
+
