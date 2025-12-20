@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, JSON
+from sqlalchemy import Column, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, JSON, LargeBinary, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -140,3 +140,14 @@ class StationVariableValue(Base):
     data = Column(DateTime, nullable=True)
     measurement = relationship("StationMeasurement", back_populates="variable_values")
     variable = relationship("StationVariable", back_populates="variable_values")
+    
+
+class MLModel(Base):
+    __tablename__ = "ml_models"
+    id = Column(Integer, primary_key=True)
+    station_code = Column(String, nullable=False)
+    model_name = Column(String, nullable=False)
+    trained_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    model = Column(LargeBinary, nullable=False)
+
+    __table_args__ = (UniqueConstraint("station_code", "model_name", name="uq_station_model"),)

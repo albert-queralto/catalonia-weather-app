@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from celery import Celery
-
+from celery.schedules import crontab
 from app.core.config import settings
 
 celery_app = Celery(
@@ -22,20 +22,25 @@ celery_app.conf.update(
 
 # Periodic tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
-    "refresh-radar-timestamps-every-5-min": {
-        "task": "app.workers.tasks.refresh_radar_timestamps",
-        "schedule": 300.0,
-    },
-    "refresh-alerts-every-5-min": {
-        "task": "app.workers.tasks.refresh_alerts",
-        "schedule": 300.0,
-    },
-    "sync-meteocat-comarca-forecasts-hourly": {
-        "task": "app.workers.tasks.sync_meteocat_comarca_forecasts",
-        "schedule": 3600.0,
-    },
-    "evaluate-notification-rules-every-5-min": {
-        "task": "app.workers.tasks.evaluate_notification_rules",
-        "schedule": 300.0,
+    # "refresh-radar-timestamps-every-5-min": {
+    #     "task": "app.workers.tasks.refresh_radar_timestamps",
+    #     "schedule": 300.0,
+    # },
+    # "refresh-alerts-every-5-min": {
+    #     "task": "app.workers.tasks.refresh_alerts",
+    #     "schedule": 300.0,
+    # },
+    # "sync-meteocat-comarca-forecasts-hourly": {
+    #     "task": "app.workers.tasks.sync_meteocat_comarca_forecasts",
+    #     "schedule": 3600.0,
+    # },
+    # "evaluate-notification-rules-every-5-min": {
+    #     "task": "app.workers.tasks.evaluate_notification_rules",
+    #     "schedule": 300.0,
+    # },
+    "train-all-station-models-weekly": {
+        "task": "app.workers.tasks.train_all_station_models",
+        "schedule": crontab(hour=21, minute=10, day_of_week="sat"),  # every Saturday at 03:00 UTC
+        "args": ("2017-01-01", "2025-12-19", "Precipitation", "xgboost"),
     },
 }
