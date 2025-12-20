@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.db.models import MeteocatStation
+from app.db.models import (
+    MeteocatStation,
+    StationMeasurement,
+    StationVariable,
+    StationVariableValue,
+)
 from app.db.session import get_session
 from app.services.providers.meteocat import meteocat_client
 from app.services.providers.schemas import StationMeasuredData
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -109,3 +114,114 @@ async def store_all_stations_variable_metadata(
     finally:
         await db.close()
     return {"status": "ok"}
+
+@router.get("/meteocat/station/{codi_estacio}/variables/values")
+async def get_station_variables_and_values(
+    codi_estacio: str,
+    date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_session),
+):
+    # Filter by date if provided
+    stmt = select(StationMeasurement).where(StationMeasurement.codi_estacio == codi_estacio)
+    if date:
+        dt = datetime.strptime(date, "%Y-%m-%d")
+        stmt = stmt.where(StationMeasurement.date == dt)
+    result = await db.execute(stmt)
+    measurements = result.scalars().all()
+    
+    output = []
+    for measurement in measurements:
+        # Get all variable values for this measurement
+        stmt_vars = select(StationVariableValue, StationVariable).join(
+            StationVariable, StationVariableValue.codi_variable == StationVariable.codi
+        ).where(StationVariableValue.measurement_id == measurement.id)
+        result_vars = await db.execute(stmt_vars)
+        variables = [
+            {
+                'codi': var.codi_variable,
+                'nom': meta.nom,
+                'valor': var.valor,
+                'unitat': meta.unitat,
+                'data': var.data,
+            }
+            for var, meta in result_vars.all()
+        ]
+        output.append({
+            "codi_estacio": measurement.codi_estacio,
+            "date": measurement.date,
+            "variables": variables,
+        })
+    return output
+
+@router.get("/meteocat/station/{codi_estacio}/variables")
+async def get_station_variables(
+    codi_estacio: str,
+    db: AsyncSession = Depends(get_session),
+):
+    # Find all variable codes that have values for this station
+    stmt = (
+        select(
+            StationVariable.codi,
+            StationVariable.nom,
+            StationVariable.unitat,
+            StationVariable.acronim,
+            StationVariable.tipus,
+            StationVariable.decimals,
+        )
+        .join(StationVariableValue, StationVariable.codi == StationVariableValue.codi_variable)
+        .join(StationMeasurement, StationVariableValue.measurement_id == StationMeasurement.id)
+        .where(StationMeasurement.codi_estacio == codi_estacio)
+        .distinct()
+    )
+    result = await db.execute(stmt)
+    variables = result.all()
+    return [
+        {
+            "codi": v.codi,
+            "nom": v.nom,
+            "unitat": v.unitat,
+            "acronim": v.acronim,
+            "tipus": v.tipus,
+            "decimals": v.decimals,
+        }
+        for v in variables
+    ]
+    
+@router.get("/meteocat/station/{codi_estacio}/variable/{codi_variable}/values")
+async def get_all_values_for_station_variable(
+    codi_estacio: str,
+    codi_variable: int,
+    date_from: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_session),
+):
+    stmt = (
+        select(
+            StationMeasurement.date,
+            StationVariableValue.valor,
+            StationVariableValue.data
+        )
+        .join(StationVariableValue, StationMeasurement.id == StationVariableValue.measurement_id)
+        .where(
+            StationMeasurement.codi_estacio == codi_estacio,
+            StationVariableValue.codi_variable == codi_variable
+        )
+    )
+    if date_from:
+        dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+        stmt = stmt.where(StationMeasurement.date >= dt_from)
+    if date_to:
+        dt_to = datetime.strptime(date_to, "%Y-%m-%d")
+        stmt = stmt.where(StationMeasurement.date <= dt_to)
+    stmt = stmt.order_by(StationMeasurement.date, StationVariableValue.data)
+    result = await db.execute(stmt)
+    values = [
+        {
+            "date": row.date,
+            "valor": row.valor,
+            "data": row.data,
+        }
+        for row in result.all()
+    ]
+    return values
+
