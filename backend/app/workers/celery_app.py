@@ -40,7 +40,6 @@ celery_app.conf.beat_schedule = {
     # },
     "train-all-station-models-weekly": {
         "task": "app.workers.tasks.train_all_station_models",
-        "schedule": crontab(hour=21, minute=10, day_of_week="sat"),  # every Saturday at 03:00 UTC
-        "args": ("2017-01-01", "2025-12-19", "Precipitation", "xgboost"),
+        "schedule": crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
     },
 }
