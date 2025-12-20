@@ -4,9 +4,7 @@ import { Box, Button, Typography, Paper, Stack } from "@mui/material";
 import "leaflet/dist/leaflet.css";
 import { EpisodiObert } from "../api/types";
 
-
 function getAffectedComarques(avisos, periodNom) {
-  // Returns array of { idComarca, perill, nivell }
   const affected = [];
   avisos.forEach(aviso =>
     aviso.evolucions.forEach(evol =>
@@ -25,58 +23,57 @@ function getAffectedComarques(avisos, periodNom) {
   return affected;
 }
 
+const DAY_LABELS = ["Today", "Tomorrow"];
+
 export default function EpisodisObertsMap() {
-  const [date, setDate] = useState(new Date());
+  const [dayOffset, setDayOffset] = useState(0);
   const [data, setData] = useState<EpisodiObert[] | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null);
   const [periods, setPeriods] = useState<string[]>([]);
   const [comarcasGeoJson, setComarcasGeoJson] = useState<any>(null);
 
-  useEffect(() => {
-    fetch("/api/v1/comarcas/geojson")
-      .then(res => res.json())
-      .then(setComarcasGeoJson);
-  }, []);
+  // Compute the date based on offset
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
 
   useEffect(() => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+        fetch("/api/v1/comarcas/geojson")
+        .then(res => res.json())
+        .then(setComarcasGeoJson);
+    }, []);
+
+    useEffect(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0); // Ensure midnight for consistency
+    base.setDate(base.getDate() + dayOffset);
+    const year = base.getFullYear();
+    const month = String(base.getMonth() + 1).padStart(2, "0");
+    const day = String(base.getDate()).padStart(2, "0");
     fetch(`/api/v1/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
-      .then(res => res.json())
-      .then(res => {
+        .then(res => res.json())
+        .then(res => {
         setData(res);
-        // Collect all unique periods for the day
         const allPeriods = new Set<string>();
         res.forEach((ep: EpisodiObert) =>
-          ep.avisos.forEach(av =>
+            ep.avisos.forEach(av =>
             av.evolucions.forEach(ev =>
-              ev.periodes.forEach(p => allPeriods.add(p.nom))
+                ev.periodes.forEach(p => allPeriods.add(p.nom))
             )
-          )
+            )
         );
         setPeriods(Array.from(allPeriods));
         setSelectedPeriod(Array.from(allPeriods)[0] || null);
-      });
-  }, [date]);
+        });
+    }, [dayOffset]);
 
-  // Map idComarca to GeoJSON feature
-  const comarcaFeatures = comarcasGeoJson?.features || [];
-  const comarcaMap = Object.fromEntries(
-    comarcaFeatures.map(f => [f.properties.code, f])
-  );
-
-  // Get affected comarques for selected period
   const affected = data && selectedPeriod
     ? getAffectedComarques(data.flatMap(ep => ep.avisos), selectedPeriod)
     : [];
 
-  // Style function for GeoJSON
   function style(feature) {
     const code = Number(feature.properties.code);
     const found = affected.find(a => a.idComarca === code);
     if (found) {
-      // Color by perill (danger level)
       const colors = ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"];
       return {
         fillColor: colors[found.perill] || "#f03b20",
@@ -96,7 +93,6 @@ export default function EpisodisObertsMap() {
   }
 
   function onEachFeature(feature, layer) {
-    // Find affected info for this comarca
     const code = Number(feature.properties.code);
     const affectedInfo = affected.filter(a => a.idComarca === code);
 
@@ -117,6 +113,17 @@ export default function EpisodisObertsMap() {
     <Box>
       <Typography variant="h5" sx={{ mb: 2 }}>Episodis Oberts Map</Typography>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        {DAY_LABELS.map((label, idx) => (
+          <Button
+            key={label}
+            variant={dayOffset === idx ? "contained" : "outlined"}
+            onClick={() => setDayOffset(idx)}
+          >
+            {label}
+          </Button>
+        ))}
+      </Stack>
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         {periods.map(p => (
           <Button
             key={p}
@@ -131,7 +138,7 @@ export default function EpisodisObertsMap() {
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {comarcasGeoJson && (
             <GeoJSON
-                key={selectedPeriod + JSON.stringify(affected.map(a => a.idComarca))}
+                key={dayOffset + '-' + selectedPeriod + '-' + JSON.stringify(affected.map(a => a.idComarca))}
                 data={comarcasGeoJson}
                 style={style}
                 onEachFeature={onEachFeature}
