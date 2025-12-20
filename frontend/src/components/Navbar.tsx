@@ -21,12 +21,12 @@ export default function Navbar() {
           <Button color="inherit" component={Link} to="/episodis-oberts">
             Current Alerts
           </Button>
+          <Button color="inherit" component={Link} to="/ml-model-trainer">
+            Model Training
+          </Button>
           {/* <Button color="inherit" component={Link} to="/forecast">
             Forecast Products
           </Button> */}
-          <Button color="inherit" component={Link} to="/modeling">
-            Modeling
-          </Button>
         </Box>
       </Toolbar>
     </AppBar>

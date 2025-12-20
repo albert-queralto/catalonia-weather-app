@@ -4,8 +4,7 @@ import PopulatePage from './components/PopulatePage';
 import ComarquesMap from './components/ComarquesMap';
 import AirQualityMap from './components/AirQualityMap';
 import EpisodisOberts from './components/EpisodisOberts';
-import ForecastPage from './components/ForecastPage';
-// import ModelingPage from './pages/ModelingPage';
+import MLModelTrainer from './components/MLModelTrainer';
 
 export default function App() {
   return (
@@ -16,8 +15,7 @@ export default function App() {
         <Route path="/historical" element={<ComarquesMap />} />
         <Route path="/air-quality-map" element={<AirQualityMap />} />
         <Route path="/episodis-oberts" element={<EpisodisOberts date={new Date()} />} />
-        {/* <Route path="/forecast" element={<ForecastPage />} /> */}
-        {/* <Route path="/modeling" element={<ModelingPage />} /> */}
+        <Route path="/ml-model-trainer" element={<MLModelTrainer />} />
       </Routes>
     </Router>
   );
