@@ -13,13 +13,16 @@ export default function Navbar() {
             Populate Data
           </Button>
           <Button color="inherit" component={Link} to="/historical">
-            Dades històriques
+            Historical Data
+          </Button>
+          <Button color="inherit" component={Link} to="/air-quality-map">
+            Air Quality Map
           </Button>
           <Button color="inherit" component={Link} to="/forecast">
-            Productes prediccions
+            Forecast Products
           </Button>
           <Button color="inherit" component={Link} to="/modeling">
-            Modelització
+            Modeling
           </Button>
         </Box>
       </Toolbar>

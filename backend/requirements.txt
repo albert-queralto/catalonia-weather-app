@@ -18,3 +18,8 @@ celery==5.4.0
 kombu==5.4.2
 
 tenacity==9.0.0
+openmeteo-requests==1.7.4
+requests-cache==1.2.1
+retry-requests==2.0.0
+pandas==2.3.3
+numpy==2.3.5
