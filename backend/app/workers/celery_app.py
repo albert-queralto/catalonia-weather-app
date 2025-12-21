@@ -10,6 +10,8 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
 )
 
+import app.workers.tasks  # noqa: F401
+
 # Basic settings; adjust as needed
 celery_app.conf.update(
     task_serializer="json",
@@ -40,6 +42,6 @@ celery_app.conf.beat_schedule = {
     # },
     "train-all-station-models-weekly": {
         "task": "app.workers.tasks.train_all_station_models",
-        "schedule": crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
+        "schedule": 300.0#crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
     },
 }

@@ -7,11 +7,9 @@ from xgboost import XGBRegressor
 import joblib
 import os
 import io
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.ml.storage import save_model_to_db
+from app.services.ml.storage import save_model_to_db_sync  # <-- use sync version
 
-
-API_URL = "http://localhost:4000/api/v1/meteocat"
+API_URL = "http://api:4000/api/v1/meteocat"
 
 MODEL_REGISTRY = {
     "random_forest": RandomForestRegressor,
@@ -39,8 +37,8 @@ def build_training_dataframe(station_code, date_from, date_to):
     variables = fetch_station_variables(station_code)
     dfs = []
     for var in variables:
-        var_id = var["id"]
-        var_name = var["name"]
+        var_id = var["codi"]
+        var_name = var["nom"]
         values = fetch_variable_values(station_code, var_id, date_from, date_to)
         df = pd.DataFrame(values)
         if not df.empty:
@@ -55,7 +53,7 @@ def build_training_dataframe(station_code, date_from, date_to):
     df_merged = df_merged.sort_values("date").dropna()
     return df_merged
 
-async def train_and_save_model(
+def train_and_save_model(
     station_code, 
     date_from, 
     date_to,
@@ -77,9 +75,9 @@ async def train_and_save_model(
     buf = io.BytesIO()
     joblib.dump(model, buf)
     model_bytes = buf.getvalue()
-    # Save to DB using async session
+    # Save to DB using sync session
     if session is not None:
-        await save_model_to_db(station_code, model_name, model_bytes, session)
+        save_model_to_db_sync(station_code, model_name, model_bytes, session)
         return f"Model for {station_code} ({model_name}) saved to DB"
     else:
         # fallback: save to disk if no session provided

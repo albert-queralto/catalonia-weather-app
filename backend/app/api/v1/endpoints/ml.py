@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from app.db.session import get_session
 from app.services.ml import train
 
@@ -18,12 +18,12 @@ def list_models():
     return {"models": train.get_available_models()}
 
 @router.post("/ml/train")
-async def train_model(
+def train_model(
     req: TrainRequest,
-    session: AsyncSession = Depends(get_session)
+    session: Session = Depends(get_session)
 ):
     try:
-        model_path = await train.train_and_save_model(
+        model_path = train.train_and_save_model(
             req.station_code, 
             req.date_from, 
             req.date_to, 

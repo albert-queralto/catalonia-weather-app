@@ -1,17 +1,16 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from app.db.models import MLModel
 from datetime import datetime, timezone
 
-async def save_model_to_db(station_code, model_name, model_bytes, session: AsyncSession):
+def save_model_to_db_sync(station_code, model_name, model_bytes, session: Session):
     try:
-        result = await session.execute(
-            select(MLModel).where(
-                MLModel.station_code == station_code,
-                MLModel.model_name == model_name
-            )
+        stmt = select(MLModel).where(
+            MLModel.station_code == station_code,
+            MLModel.model_name == model_name
         )
+        result = session.execute(stmt)
         obj = result.scalars().first()
         if obj:
             obj.model = model_bytes
@@ -24,13 +23,13 @@ async def save_model_to_db(station_code, model_name, model_bytes, session: Async
                 trained_at=datetime.now(timezone.utc)
             )
             session.add(obj)
-        await session.commit()
+        session.commit()
     except IntegrityError:
-        await session.rollback()
+        session.rollback()
         raise
 
-async def load_model_from_db(station_code, model_name, session: AsyncSession):
-    result = await session.execute(
+def load_model_from_db_sync(station_code, model_name, session: Session):
+    stmt = (
         select(MLModel)
         .where(
             MLModel.station_code == station_code,
@@ -38,5 +37,6 @@ async def load_model_from_db(station_code, model_name, session: AsyncSession):
         )
         .order_by(MLModel.trained_at.desc())
     )
+    result = session.execute(stmt)
     obj = result.scalars().first()
     return obj.model if obj else None
