@@ -21,6 +21,9 @@ export default function Navbar() {
           <Button color="inherit" component={Link} to="/episodis-oberts">
             Current Alerts
           </Button>
+          <Button color="inherit" component={Link} to="/aca-pluviometers">
+            ACA Pluviometers
+          </Button>
           <Button color="inherit" component={Link} to="/ml-model-trainer">
             Model Training
           </Button>

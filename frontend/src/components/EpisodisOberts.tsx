@@ -4,20 +4,23 @@ import { Box, Button, Typography, Paper, Stack } from "@mui/material";
 import "leaflet/dist/leaflet.css";
 import { EpisodiObert } from "../api/types";
 
-function getAffectedComarques(avisos, periodNom) {
+
+function getAffectedComarques(episodis, periodNom) {
   const affected = [];
-  avisos.forEach(aviso =>
-    aviso.evolucions.forEach(evol =>
-      evol.periodes.forEach(period => {
-        if (period.nom === periodNom && period.afectacions) {
-          affected.push(...period.afectacions.map(a => ({
-            idComarca: a.idComarca,
-            perill: a.perill,
-            nivell: a.nivell,
-            llindar: a.llindar
-          })));
-        }
-      })
+  episodis.forEach(ep =>
+    (ep.avisos || []).forEach(aviso =>
+      (aviso.evolucions || []).forEach(evol =>
+        (evol.periodes || []).forEach(period => {
+          if (period.nom === periodNom && Array.isArray(period.afectacions)) {
+            affected.push(...period.afectacions.map(a => ({
+              idComarca: a.idComarca,
+              perill: a.perill,
+              nivell: a.nivell,
+              llindar: a.llindar
+            })));
+          }
+        })
+      )
     )
   );
   return affected;
@@ -43,31 +46,43 @@ export default function EpisodisObertsMap() {
     }, []);
 
     useEffect(() => {
-    const base = new Date();
-    base.setHours(0, 0, 0, 0); // Ensure midnight for consistency
-    base.setDate(base.getDate() + dayOffset);
-    const year = base.getFullYear();
-    const month = String(base.getMonth() + 1).padStart(2, "0");
-    const day = String(base.getDate()).padStart(2, "0");
-    fetch(`/api/v1/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
-        .then(res => res.json())
+      const base = new Date();
+      base.setHours(0, 0, 0, 0); // Ensure midnight for consistency
+      base.setDate(base.getDate() + dayOffset);
+      const year = base.getFullYear();
+      const month = String(base.getMonth() + 1).padStart(2, "0");
+      const day = String(base.getDate()).padStart(2, "0");
+      fetch(`/api/v1/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
+        .then(async res => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text}`);
+          }
+          return res.json();
+        })
         .then(res => {
-        setData(res);
-        const allPeriods = new Set<string>();
-        res.forEach((ep: EpisodiObert) =>
-            ep.avisos.forEach(av =>
-            av.evolucions.forEach(ev =>
-                ev.periodes.forEach(p => allPeriods.add(p.nom))
+          setData(res);
+          const allPeriods = new Set<string>();
+          res.forEach((ep: EpisodiObert) =>
+            (ep.avisos || []).forEach(av =>
+              (av.evolucions || []).forEach(ev =>
+                (ev.periodes || []).forEach(p => allPeriods.add(p.nom))
+              )
             )
-            )
-        );
-        setPeriods(Array.from(allPeriods));
-        setSelectedPeriod(Array.from(allPeriods)[0] || null);
+          );
+          setPeriods(Array.from(allPeriods));
+          setSelectedPeriod(Array.from(allPeriods)[0] || null);
+        })
+        .catch(err => {
+          setData([]);
+          setPeriods([]);
+          setSelectedPeriod(null);
+          console.error("Failed to fetch episodi oberts:", err);
         });
     }, [dayOffset]);
 
   const affected = data && selectedPeriod
-    ? getAffectedComarques(data.flatMap(ep => ep.avisos), selectedPeriod)
+    ? getAffectedComarques(data, selectedPeriod)
     : [];
 
   function style(feature) {
