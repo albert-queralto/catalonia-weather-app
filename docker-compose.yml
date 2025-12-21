@@ -96,6 +96,7 @@ services:
     command: python scripts/load_comarcas.py
     depends_on:
       - postgres
+      - migrate
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-weather}
       POSTGRES_USER: ${POSTGRES_USER:-weather}
@@ -103,6 +104,18 @@ services:
     volumes:
       - ./backend/scripts:/app/scripts
       - ./backend/data:/app/data
+    restart: "no"
+
+  migrate:
+    build:
+      context: ./backend
+    command: alembic upgrade head
+    depends_on:
+      - postgres
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend:/app
     restart: "no"
 
 volumes:
