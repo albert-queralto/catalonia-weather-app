@@ -49,13 +49,13 @@ def store_station_variable_metadata(
     return {"status": "ok"}
 
 @router.post("/meteocat/station/{codi_estacio}/{any}/{mes}/{dia}/variables/store")
-def store_station_variable_values(
+async def store_station_variable_values(
     codi_estacio: str,
     any: int,
     mes: int,
     dia: int,
 ):
-    meteocat_client.fetch_and_store_station_variable_values(codi_estacio, any, mes, dia)
+    await meteocat_client.fetch_and_store_station_variable_values(codi_estacio, any, mes, dia)
     return {"status": "ok"}
 
 @router.post("/meteocat/stations/variables/store-range")
@@ -75,11 +75,11 @@ def store_all_stations_variable_values(
     finally:
         db.close()
 
-    def process_all():
+    async def process_all():
         for codi_estacio in station_codes:
             current_date = start_dt
             while current_date <= end_dt:
-                meteocat_client.fetch_and_store_station_variable_values(
+                await meteocat_client.fetch_and_store_station_variable_values(
                     codi_estacio,
                     current_date.year,
                     current_date.month,
@@ -106,7 +106,7 @@ def store_all_stations_variable_metadata_sync(
         station_codes = [station.codi for station in stations]
 
         for codi_estacio in station_codes:
-            meteocat_client.fetch_and_store_station_variable_metadata_sync(
+            meteocat_client.fetch_and_store_station_variable_metadata(
                 codi_estacio, estat, data
             )
     finally:

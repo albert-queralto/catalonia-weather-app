@@ -87,10 +87,10 @@ class MeteocatClient:
     async def fetch_and_store_meteocat_stations(self, estat: str, data: str):
         stations = await self.fetch_station_metadata(estat, data)
 
-        async with SessionLocal() as db:
+        with SessionLocal() as db:
             for station in stations:
                 stmt = select(MeteocatStation).where(MeteocatStation.codi == station["codi"])
-                result = await db.execute(stmt)
+                result = db.execute(stmt)
                 existing = result.scalar_one_or_none()
                 if existing:
                     # Update existing
@@ -116,7 +116,7 @@ class MeteocatClient:
                         estats=station.get("estats"),
                     )
                     db.add(obj)
-            await db.commit()
+                db.commit()
             
     async def fetch_station_measured_data(
         self, codi_estacio: str, any: int, mes: int, dia: int
@@ -139,14 +139,14 @@ class MeteocatClient:
         if not data:
             return
 
-        async with SessionLocal() as db:
+        with SessionLocal() as db:
             for station in data:
                 measurement = StationMeasurement(
                     codi_estacio=station["codi"],
                     date=datetime(any, mes, dia),
                 )
                 db.add(measurement)
-                await db.flush()  # Get measurement.id
+                db.flush()  # Get measurement.id
 
                 for var in station.get("variables", []):
                     variable = StationVariable(
@@ -155,7 +155,7 @@ class MeteocatClient:
                         lectures=var["lectures"],
                     )
                     db.add(variable)
-            await db.commit()
+            db.commit()
 
     async def fetch_and_store_station_variable_metadata(self, codi_estacio: str, estat: str = "ope", data: str = None):
         # Fetch variable metadata from API
@@ -173,11 +173,11 @@ class MeteocatClient:
             variables = resp.json()
 
         # Store variable metadata
-        async with SessionLocal() as db:
+        with SessionLocal() as db:
             for var in variables:
                 # Upsert by codi
                 stmt = select(StationVariable).where(StationVariable.codi == var["codi"])
-                result = await db.execute(stmt)
+                result = db.execute(stmt)
                 existing = result.scalar_one_or_none()
                 if existing:
                     # Update fields
@@ -195,7 +195,7 @@ class MeteocatClient:
                         bases_temporals=var["basesTemporals"],
                     )
                     db.add(obj)
-            await db.commit()
+            db.commit()
             
     async def fetch_and_store_station_variable_values(self, codi_estacio: str, any: int, mes: int, dia: int):
         # Fetch measured data
@@ -208,7 +208,7 @@ class MeteocatClient:
                 return dt.replace(tzinfo=None)
             return dt
 
-        async with SessionLocal() as db:
+        with SessionLocal() as db:
             for station_data in measured_data:
                 # Create measurement record
                 measurement = StationMeasurement(
@@ -216,7 +216,7 @@ class MeteocatClient:
                     date=datetime(any, mes, dia),
                 )
                 db.add(measurement)
-                await db.flush()  # Get measurement.id
+                db.flush()  # Get measurement.id
 
                 for var in station_data.get("variables", []):
                     codi_variable = var["codi"]
@@ -234,6 +234,6 @@ class MeteocatClient:
                             data=dt,
                         )
                         db.add(variable_value)
-            await db.commit()
+            db.commit()
 
 meteocat_client = MeteocatClient()

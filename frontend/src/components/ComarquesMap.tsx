@@ -313,6 +313,28 @@ export default function ComarquesMap() {
           )}
         </Box>
       </Modal>
+      {/* Footer with Servei Meteorològic de Catalunya logo */}
+      <Box
+        sx={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          width: "100%",
+          bgcolor: "white",
+          py: 1,
+          boxShadow: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1300,
+        }}
+      >
+        <img
+          src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Ftse1.mm.bing.net%2Fth%2Fid%2FOIP.7CD-xJdTQEq2L_FOoo6puQHaB1%3Fpid%3DApi&f=1&ipt=1087bf38f2747e410daeaa02fbcf88325c11716b0a6f223924786151b4cdb244&ipo=images"
+          alt="Servei Meteorològic de Catalunya"
+          style={{ height: 32, marginRight: 12 }}
+        />
+      </Box>
     </>
   );
 }

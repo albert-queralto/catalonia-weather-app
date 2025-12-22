@@ -15,7 +15,7 @@ def train_all_station_models():
             if not date_from or not date_to:
                 continue
             train_and_save_model(
-                station_code, date_from, date_to, "Precipitation", "xgboost", db
+                station_code, date_from, date_to, "Precipitació", "xgboost", db
             )
     finally:
         db.close()

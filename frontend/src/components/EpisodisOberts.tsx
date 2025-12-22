@@ -138,7 +138,7 @@ export default function EpisodisObertsMap() {
           </Button>
         ))}
       </Stack>
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
         {periods.map(p => (
           <Button
             key={p}
@@ -148,6 +148,15 @@ export default function EpisodisObertsMap() {
             {p}
           </Button>
         ))}
+        {/* Danger Level Legend */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 4 }}>
+          <Typography variant="subtitle2" sx={{ mr: 1 }}>Danger Level:</Typography>
+          <Box sx={{ bgcolor: "#ffffb2", width: 24, height: 16, border: "1px solid #888" }} /> <span>1</span>
+          <Box sx={{ bgcolor: "#fecc5c", width: 24, height: 16, border: "1px solid #888" }} /> <span>2</span>
+          <Box sx={{ bgcolor: "#fd8d3c", width: 24, height: 16, border: "1px solid #888" }} /> <span>3</span>
+          <Box sx={{ bgcolor: "#f03b20", width: 24, height: 16, border: "1px solid #888" }} /> <span>4</span>
+          <Box sx={{ bgcolor: "#bd0026", width: 24, height: 16, border: "1px solid #888" }} /> <span>5</span>
+        </Box>
       </Stack>
       <MapContainer center={[41.8, 1.5]} zoom={8} style={{ height: "600px", width: "100%" }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -160,16 +169,28 @@ export default function EpisodisObertsMap() {
             />
         )}
       </MapContainer>
-      <Paper sx={{ mt: 2, p: 2 }}>
-        <Typography variant="subtitle1">Legend: Danger Level (Perill)</Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Box sx={{ bgcolor: "#ffffb2", width: 24, height: 16, border: "1px solid #888" }} /> <span>1</span>
-          <Box sx={{ bgcolor: "#fecc5c", width: 24, height: 16, border: "1px solid #888" }} /> <span>2</span>
-          <Box sx={{ bgcolor: "#fd8d3c", width: 24, height: 16, border: "1px solid #888" }} /> <span>3</span>
-          <Box sx={{ bgcolor: "#f03b20", width: 24, height: 16, border: "1px solid #888" }} /> <span>4</span>
-          <Box sx={{ bgcolor: "#bd0026", width: 24, height: 16, border: "1px solid #888" }} /> <span>5</span>
-        </Box>
-      </Paper>
+      {/* Footer with Servei Meteorològic de Catalunya logo */}
+            <Box
+              sx={{
+                position: "fixed",
+                bottom: 0,
+                left: 0,
+                width: "100%",
+                bgcolor: "white",
+                py: 1,
+                boxShadow: 2,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1300,
+              }}
+            >
+              <img
+                src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Ftse1.mm.bing.net%2Fth%2Fid%2FOIP.7CD-xJdTQEq2L_FOoo6puQHaB1%3Fpid%3DApi&f=1&ipt=1087bf38f2747e410daeaa02fbcf88325c11716b0a6f223924786151b4cdb244&ipo=images"
+                alt="Servei Meteorològic de Catalunya"
+                style={{ height: 32, marginRight: 12 }}
+              />
+            </Box>
     </Box>
   );
 }

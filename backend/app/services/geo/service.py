@@ -14,11 +14,11 @@ class ComarcaLookupResult:
 
 
 class ComarcaService:
-    async def list_comarcas(self, session: AsyncSession) -> list[ComarcaLookupResult]:
-        res = await session.execute(select(Comarca.code, Comarca.name).order_by(Comarca.name.asc()))
+    def list_comarcas(self, session: AsyncSession) -> list[ComarcaLookupResult]:
+        res = session.execute(select(Comarca.code, Comarca.name).order_by(Comarca.name.asc()))
         return [ComarcaLookupResult(code=r[0], name=r[1]) for r in res.all()]
 
-    async def lookup_by_point(self, session: AsyncSession, lat: float, lon: float) -> Optional[ComarcaLookupResult]:
+    def lookup_by_point(self, session: AsyncSession, lat: float, lon: float) -> Optional[ComarcaLookupResult]:
         # PostGIS uses (lon, lat)
         point = func.ST_SetSRID(func.ST_Point(lon, lat), 4326)
         stmt = (
@@ -26,7 +26,7 @@ class ComarcaService:
             .where(func.ST_Contains(Comarca.geom, point))
             .limit(1)
         )
-        res = await session.execute(stmt)
+        res = session.execute(stmt)
         row = res.first()
         if not row:
             return None

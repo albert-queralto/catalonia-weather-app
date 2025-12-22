@@ -5,7 +5,6 @@ import ComarquesMap from './components/ComarquesMap';
 import AirQualityMap from './components/AirQualityMap';
 import EpisodisOberts from './components/EpisodisOberts';
 import MLModelTrainer from './components/MLModelTrainer';
-import AcaPluviometersMap from './components/AcaPluviometersMap';
 
 export default function App() {
   return (
@@ -17,7 +16,6 @@ export default function App() {
         <Route path="/air-quality-map" element={<AirQualityMap />} />
         <Route path="/episodis-oberts" element={<EpisodisOberts date={new Date()} />} />
         <Route path="/ml-model-trainer" element={<MLModelTrainer />} />
-        <Route path="/aca-pluviometers" element={<AcaPluviometersMap />} />
       </Routes>
     </Router>
   );
