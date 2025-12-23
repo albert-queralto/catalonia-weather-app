@@ -118,6 +118,22 @@ services:
       - ./backend:/app
     restart: "no"
 
+  trainer:
+    image: python:3.11-slim
+    working_dir: /work/recommender
+    volumes:
+      - ./recommender:/work/recommender
+      - ./models:/work/models
+    environment:
+      PG_URL: postgresql+psycopg2://weather:weather@postgres:5432/activities
+      MODEL_OUT: /work/models/recommender.joblib
+      LOOKBACK_DAYS: 30
+      LABEL_WINDOW_DAYS: 7
+    depends_on:
+      - postgres
+    command: bash -lc "pip install -r requirements.txt && python train_from_db.py"
+
+
 volumes:
   pgdata:
   redisdata:
