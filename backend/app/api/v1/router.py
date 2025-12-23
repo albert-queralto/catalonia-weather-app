@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     forecast,
     auth,
     recommender,
+    activities,
 )
 
 api_router = APIRouter()
@@ -20,3 +21,4 @@ api_router.include_router(air_quality.router, prefix="/v1", tags=["air_quality"]
 api_router.include_router(meteocat.router, prefix="/v1", tags=["meteocat"])
 api_router.include_router(forecast.router, prefix="/v1", tags=["forecast"])
 api_router.include_router(recommender.router, prefix="/v1", tags=["recommender"])
+api_router.include_router(activities.router, prefix="/v1", tags=["activities"])

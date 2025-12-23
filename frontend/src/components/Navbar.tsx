@@ -60,6 +60,8 @@ export default function Navbar() {
       {user && (
         <>
           {navLink("/", "Activity recommendations")}
+          {navLink("/suggest-activity", "Suggest activity")}
+          {navLink("/activities", "All activities")}
           {navLink("/historical", "Historical data")}
           {navLink("/air-quality-map", "Air quality map")}
           {navLink("/episodis-oberts", "Meteo alerts")}

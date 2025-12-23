@@ -13,6 +13,8 @@ import EpisodisOberts from './components/EpisodisOberts';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import RecommenderHome from './components/RecommenderHome';
+import SuggestActivityPage from './components/SuggestActivityPage';
+import AllActivitiesPage from './components/AllActivitiesPage';
 
 export default function App() {
   return (
@@ -44,6 +46,8 @@ export default function App() {
           <Route path="/historical" element={<ComarquesMap />} />
           <Route path="/air-quality-map" element={<AirQualityMap />} />
           <Route path="/episodis-oberts" element={<EpisodisOberts date={new Date()} />} />
+          <Route path="/suggest-activity" element={<SuggestActivityPage />} />
+          <Route path="/activities" element={<AllActivitiesPage />} />
         </Routes>
       </Router>
     </AuthProvider>

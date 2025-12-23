@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Box, Button, Typography, TextField, Alert, Stack, Divider } from '@mui/material';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { Tooltip, IconButton } from '@mui/material';
 
 type RecActivity = {
   id: string;
@@ -34,6 +36,16 @@ async function fetchJson(url: string, init?: RequestInit): Promise<any> {
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <Tooltip title={text} arrow>
+      <IconButton size="small" sx={{ ml: 0.5, verticalAlign: "middle" }}>
+        <InfoOutlinedIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
 }
 
 export default function PopulatePage() {
@@ -274,28 +286,118 @@ export default function PopulatePage() {
 
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
           <TextField
-            label="User ID (UUID) for /events"
+            label={
+              <>
+                User ID (UUID) for /events
+                <InfoTip text="The user identifier used when posting synthetic events to the recommender backend. It should be a valid UUID." />
+              </>
+            }
             value={recUserId}
             onChange={(e) => setRecUserId(e.target.value)}
             size="small"
             fullWidth
           />
           <TextField
-            label="Client logs views?"
+            label={
+              <>
+                Client logs views?
+                <InfoTip text="If set to 'yes', the frontend will post a 'view' event for each recommendation to the backend. If 'no', it assumes the backend logs impressions automatically." />
+              </>
+            }
             value={recLogViewsClientSide}
             onChange={(e) => setRecLogViewsClientSide(e.target.value)}
             size="small"
             helperText="Set to 'yes' only if backend does NOT log impressions in /recommendations"
           />
 
-          <TextField label="Lat" value={recLat} onChange={(e) => setRecLat(e.target.value)} size="small" />
-          <TextField label="Lon" value={recLon} onChange={(e) => setRecLon(e.target.value)} size="small" />
-          <TextField label="Radius km" value={recRadiusKm} onChange={(e) => setRecRadiusKm(e.target.value)} size="small" />
-          <TextField label="Horizon hours" value={recHorizonHours} onChange={(e) => setRecHorizonHours(e.target.value)} size="small" />
-          <TextField label="Limit" value={recLimit} onChange={(e) => setRecLimit(e.target.value)} size="small" />
-          <TextField label="Loops" value={recLoops} onChange={(e) => setRecLoops(e.target.value)} size="small" />
-          <TextField label="Click rate (0..1)" value={recClickRate} onChange={(e) => setRecClickRate(e.target.value)} size="small" />
-          <TextField label="Save rate (0..1)" value={recSaveRate} onChange={(e) => setRecSaveRate(e.target.value)} size="small" />
+          <TextField
+            label={
+              <>
+                Latitude
+                <InfoTip text="The latitude for which recommendations are requested." />
+              </>
+            }
+            value={recLat}
+            onChange={(e) => setRecLat(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Longitude
+                <InfoTip text="The longitude for which recommendations are requested." />
+              </>
+            }
+            value={recLon}
+            onChange={(e) => setRecLon(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Radius km
+                <InfoTip text="The search radius (in kilometers) around the specified location for recommendations." />
+              </>
+            }
+            value={recRadiusKm}
+            onChange={(e) => setRecRadiusKm(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Horizon hours
+                <InfoTip text="How far into the future recommendations should be considered (e.g., activities available in the next X hours)." />
+              </>
+            }
+            value={recHorizonHours}
+            onChange={(e) => setRecHorizonHours(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Limit
+                <InfoTip text="The number of recommendations to fetch per request (e.g., if limit=20, you get 20 activities per batch)." />
+              </>
+            }
+            value={recLimit}
+            onChange={(e) => setRecLimit(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Loops
+                <InfoTip text="The number of times to repeat the recommendation request and event posting process. For example, if loops=10, it will simulate 10 rounds of recommendations and events." />
+              </>
+            }
+            value={recLoops}
+            onChange={(e) => setRecLoops(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Click rate (0..1)
+                <InfoTip text="The probability that a synthetic 'click' event is posted for a recommended activity. For example, if click rate=0.25, about 25% of recommendations will get a 'click' event." />
+              </>
+            }
+            value={recClickRate}
+            onChange={(e) => setRecClickRate(e.target.value)}
+            size="small"
+          />
+          <TextField
+            label={
+              <>
+                Save rate (0..1)
+                <InfoTip text="The probability that a synthetic 'save' event is posted for a recommended activity. If save rate=0.08, about 8% of recommendations will get a 'save' event." />
+              </>
+            }
+            value={recSaveRate}
+            onChange={(e) => setRecSaveRate(e.target.value)}
+            size="small"
+          />
         </Box>
 
         <Button variant="contained" onClick={handlePopulateRecommenderInteractions} disabled={!!loading}>
