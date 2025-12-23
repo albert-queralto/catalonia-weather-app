@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
     database_url: str = Field(
-        default="postgresql+asyncpg://weather:weather@postgres:5432/weather", alias="DATABASE_URL"
+        default="postgresql+asyncpg://weather:weather@postgres:5432/weather", 
+        alias="DATABASE_URL"
     )
 
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
@@ -38,6 +39,13 @@ class Settings(BaseSettings):
     meteocat_api_key: str = Field(default="", alias="METEOCAT_API_KEY")
     aemet_api_key: str = Field(default="", alias="AEMET_API_KEY")
     weatherkit_token: str = Field(default="", alias="WEATHERKIT_TOKEN")
+
+    model_path: str = Field(default="/models/recommender.joblib")
+    
+    jwt_secret_key: str = Field(default="supersecretkey", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_access_token_expire_minutes: int = Field(default=60 * 24, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+
 
     @property
     def cors_origin_list(self) -> List[str]:

@@ -12,10 +12,6 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.services.ml.schemas import (
-    ComarcaDailyPoint, 
-    ComarcaForecastResponse, 
-)
 from app.db.session import SessionLocal
 from app.db.models import (
     MeteocatStation, 

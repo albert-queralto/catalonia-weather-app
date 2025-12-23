@@ -1,24 +1,27 @@
-from .models import (
-    Activity,
-    Comarca,
-    Event,
+# Import all models from their respective files
+from .comarca import Comarca
+from .meteocat import (
     MeteocatStation,
     StationMeasurement,
     StationVariable,
     StationVariableValue,
+)
+from .user import (
     User,
-    UserPreference
+    UserPreference,
+    Activity,
+    Event
 )
 
 
 __all__ = [
-    "Activity",
     "Comarca",
-    "Event",
     "MeteocatStation",
     "StationMeasurement",
     "StationVariable",
     "StationVariableValue",
     "User",
     "UserPreference",
+    "Activity",
+    "Event",
 ]

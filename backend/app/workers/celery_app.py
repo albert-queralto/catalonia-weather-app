@@ -40,8 +40,8 @@ celery_app.conf.beat_schedule = {
     #     "task": "app.workers.tasks.evaluate_notification_rules",
     #     "schedule": 300.0,
     # },
-    "train-all-station-models-weekly": {
-        "task": "app.workers.tasks.train_all_station_models",
-        "schedule": 300.0#crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
-    },
+    # "train-all-station-models-weekly": {
+    #     "task": "app.workers.tasks.train_all_station_models",
+    #     "schedule": 300.0#crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
+    # },
 }
