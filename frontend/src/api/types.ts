@@ -105,3 +105,49 @@ export interface EpisodiObert {
   avisos: Avis[];
 }
 
+export type Role = "user" | "admin";
+
+export type Me = {
+  id: string;
+  email: string;
+  role: Role;
+};
+
+export type TokenOut = {
+  access_token: string;
+  token_type: "bearer";
+};
+
+export type ActivityOut = {
+  id: string;
+  name: string;
+  category: string;
+  tags: string[];
+  indoor: boolean;
+  covered: boolean;
+  price_level: number;
+  difficulty: number;
+  duration_minutes: number;
+  distance_km: number;
+  score: number;
+  reason: string;
+  request_id?: string | null;
+};
+
+export type EventIn = {
+  user_id: string;
+  activity_id: string;
+  event_type: "view" | "click" | "save" | "complete" | "dismiss";
+  ts?: string;
+
+  request_id?: string | null;
+  position?: number | null;
+
+  user_lat?: number | null;
+  user_lon?: number | null;
+
+  weather_temp_c?: number | null;
+  weather_precip_prob?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_is_day?: number | null;
+};
