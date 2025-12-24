@@ -37,7 +37,7 @@ export default function MLModelTrainer() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const recommenderBase = useMemo(() => (import.meta as any).env?.VITE_RECOMMENDER_API_BASE ?? '', []);
+  const recommenderBase = useMemo(() => (import.meta as any).env?.VITE_API_BASE_URL ?? '', []);
   const authToken = getAuthToken();
   const [recHealth, setRecHealth] = useState<{ ok: boolean; model_loaded: boolean } | null>(null);
   const [recStatus, setRecStatus] = useState<string | null>(null);
@@ -232,7 +232,7 @@ export default function MLModelTrainer() {
             <div>cd ml</div>
             <div>python -m venv .venv && source .venv/bin/activate</div>
             <div>pip install -r requirements.txt</div>
-            <div>export PG_URL="postgresql+psycopg2://weather:weather@postgres:5432/activities"</div>
+            <div>export PG_URL="postgresql+psycopg2://weather:weather@postgres:5432/weather"</div>
             <div>export MODEL_OUT="../models/recommender.joblib"</div>
             <div>python train_from_db.py</div>
           </Box>

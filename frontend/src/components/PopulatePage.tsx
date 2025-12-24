@@ -56,7 +56,12 @@ export default function PopulatePage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const recommenderBase = useMemo(() => (import.meta as any).env?.VITE_RECOMMENDER_API_BASE ?? '', []);
+  const recommenderBase = useMemo(
+    () =>
+      (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/$/, "") ||
+      "/api/v1",
+    []
+  );
   const [recUserId, setRecUserId] = useState('');
   const [recLat, setRecLat] = useState('41.3851'); // Barcelona-ish default
   const [recLon, setRecLon] = useState('2.1734');
@@ -114,6 +119,15 @@ export default function PopulatePage() {
     setLoading('');
   };
 
+  async function fetchFirstUserId(): Promise<string | null> {
+    try {
+      const users = await fetchJson(`${recommenderBase}/auth/users`);
+      return users.length > 0 ? users[0].id : null;
+    } catch {
+      return null;
+    }
+  }
+
   const handlePopulateRecommenderInteractions = async () => {
     setLoading('recommender-populate');
     setMessage('');
@@ -139,10 +153,11 @@ export default function PopulatePage() {
         throw new Error('clickRate/saveRate must be between 0 and 1.');
       }
 
-      // If your backend enforces user identity from JWT, you can leave this blank and modify
-      // /events to infer user_id. For now, we keep it explicit.
-      if (!recUserId) {
-        throw new Error('User ID (UUID) is required to post /events in the recommender backend.');
+      let userId = recUserId;
+      if (!userId) {
+        userId = await fetchFirstUserId();
+        if (!userId) throw new Error('No users found in the database. Please register a user first.');
+        setRecUserId(userId);
       }
 
       const headers: Record<string, string> = {};
@@ -178,7 +193,7 @@ export default function PopulatePage() {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                user_id: recUserId,
+                user_id: userId,
                 activity_id: r.id,
                 event_type: 'view',
                 request_id: requestId,
@@ -206,7 +221,7 @@ export default function PopulatePage() {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                user_id: recUserId,
+                user_id: userId,
                 activity_id: r.id,
                 event_type: eventType,
                 request_id: requestId,

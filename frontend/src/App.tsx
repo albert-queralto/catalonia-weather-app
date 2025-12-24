@@ -15,6 +15,7 @@ import RegisterPage from './components/RegisterPage';
 import RecommenderHome from './components/RecommenderHome';
 import SuggestActivityPage from './components/SuggestActivityPage';
 import AllActivitiesPage from './components/AllActivitiesPage';
+import ManageCategoriesPage from './components/ManageCategoriesPage';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/episodis-oberts" element={<EpisodisOberts date={new Date()} />} />
           <Route path="/suggest-activity" element={<SuggestActivityPage />} />
           <Route path="/activities" element={<AllActivitiesPage />} />
+          <Route path="/manage-categories" element={<ManageCategoriesPage />} />
         </Routes>
       </Router>
     </AuthProvider>

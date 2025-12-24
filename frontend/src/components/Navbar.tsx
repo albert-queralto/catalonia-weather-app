@@ -1,10 +1,14 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useState } from "react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   function onLogout() {
     logout();
@@ -32,6 +36,7 @@ export default function Navbar() {
     padding: "6px 12px",
     borderRadius: 4,
     transition: "background 0.2s",
+    display: "block"
   };
 
   const linkActiveStyle: React.CSSProperties = {
@@ -40,16 +45,61 @@ export default function Navbar() {
 
   const spacer: React.CSSProperties = { flex: 1 };
 
-  // Helper to merge styles
-  function navLink(to: string, label: string) {
+  function navLink(to: string, label: string, key?: string) {
     const isActive = location.pathname === to;
     return (
       <Link
+        key={key || to}
         to={to}
         style={isActive ? { ...linkStyle, ...linkActiveStyle } : linkStyle}
+        onClick={() => {
+          setAdminOpen(false);
+          setActivityOpen(false);
+          setSuggestOpen(false);
+        }}
       >
         {label}
       </Link>
+    );
+  }
+
+  function dropdownMenu(label: string, open: boolean, setOpen: (v: boolean) => void, links: JSX.Element[]) {
+    return (
+      <div style={{ position: "relative" }}>
+        <button
+          style={{
+            background: "rgba(255,255,255,0.12)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            padding: "6px 14px",
+            fontWeight: 600,
+            cursor: "pointer",
+            minWidth: 140,
+          }}
+          onClick={() => setOpen(!open)}
+        >
+          {label} ▼
+        </button>
+        {open && (
+          <div
+            style={{
+              position: "absolute",
+              top: "110%",
+              left: 0,
+              background: "#1976d2",
+              borderRadius: 6,
+              boxShadow: "0 2px 8px rgba(21,101,192,0.18)",
+              zIndex: 100,
+              minWidth: 200,
+              padding: "8px 0",
+            }}
+            onMouseLeave={() => setOpen(false)}
+          >
+            {links}
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -59,18 +109,31 @@ export default function Navbar() {
 
       {user && (
         <>
-          {navLink("/", "Activity recommendations")}
-          {navLink("/suggest-activity", "Suggest activity")}
-          {navLink("/activities", "All activities")}
-          {navLink("/historical", "Historical data")}
-          {navLink("/air-quality-map", "Air quality map")}
-          {navLink("/episodis-oberts", "Meteo alerts")}
+          {dropdownMenu(
+            "Activity recommendations",
+            activityOpen,
+            setActivityOpen,
+            [
+              navLink("/", "Activity recommender", "activity-recommender"),
+              navLink("/suggest-activity", "Suggest activity", "suggest-activity"),
+            ]
+          )}
+          {navLink("/historical", "Historical data", "historical-data")}
+          {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
+          {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
 
           {user.role === "admin" && (
-            <>
-              {navLink("/populate", "Populate data")}
-              {navLink("/ml-model-trainer", "ML Trainer")}
-            </>
+            dropdownMenu(
+              "Admin Management",
+              adminOpen,
+              setAdminOpen,
+              [
+                navLink("/activities", "Manage activities", "manage-activities"),
+                navLink("/manage-categories", "Manage categories", "manage-categories"),
+                navLink("/populate", "Populate data", "populate-data"),
+                navLink("/ml-model-trainer", "ML Trainer", "ml-model-trainer"),
+              ]
+            )
           )}
         </>
       )}

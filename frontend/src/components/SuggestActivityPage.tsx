@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -13,15 +13,6 @@ import {
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-
-const categories = [
-  "Sport",
-  "Culture",
-  "Nature",
-  "Food",
-  "Leisure",
-  "Other",
-];
 
 // Fix default marker icon for Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -71,6 +62,7 @@ function LocationPicker({ lat, lon, setLat, setLon }: {
 }
 
 export default function SuggestActivityPage() {
+  const [categories, setCategories] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState<string>("");
@@ -83,6 +75,13 @@ export default function SuggestActivityPage() {
   const [lon, setLon] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/v1/categories")
+      .then(res => res.json())
+      .then(setCategories)
+      .catch(() => setCategories([]));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -194,7 +194,7 @@ export default function ComarquesMap() {
       <MapContainer
         center={[41.8, 1.5]}
         zoom={8}
-        style={{ height: '600px', width: '100%' }}
+        style={{ height: '600px', width: '100%', marginTop: '125px' }}
       >
         {/* This will center the map when stationToCenter changes */}
         <CenterMapToStation station={stationToCenter} />
