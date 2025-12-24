@@ -1,4 +1,5 @@
 import uuid
+import pandas as pd
 from sqlalchemy import text
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -9,11 +10,57 @@ from app.services.user.auth import get_current_user, require_role
 from app.db.session import get_session
 from app.db.models import User
 from app.services.recommender.schemas import ActivityOut, EventIn
+from app.services.recommender.utils import get_weather_for_event
 
-router = APIRouter(prefix="/recommender", tags=["recommender"])
+router = APIRouter(tags=["recommender"])
 
 model = MLRecommender(settings.model_path)
 model.load()
+
+
+@router.post("/events")
+def log_event(ev: EventIn, db: Session = Depends(get_session)):
+    # Fetch weather data for the event location and time
+    event_time = ev.ts.isoformat() if ev.ts else pd.Timestamp.now(tz="UTC").isoformat()
+    weather = get_weather_for_event(ev.user_lat, ev.user_lon, event_time)
+
+    db.execute(
+        text("""
+        INSERT INTO events (
+          id, user_id, activity_id, event_type, ts,
+          request_id, position,
+          user_lat, user_lon,
+          weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day,
+          cloud_cover, precipitation
+        )
+        VALUES (
+          :id, :u, :a, :t, COALESCE(:ts, now()),
+          :rid, :pos,
+          :lat, :lon,
+          :temp, :pp, :wind, :day,
+          :cloud, :precip
+        )
+        """),
+        {
+            "id": str(uuid.uuid4()),
+            "u": str(ev.user_id),
+            "a": str(ev.activity_id),
+            "t": ev.event_type,
+            "ts": ev.ts,
+            "rid": str(ev.request_id) if ev.request_id else None,
+            "pos": ev.position,
+            "lat": ev.user_lat,
+            "lon": ev.user_lon,
+            "temp": weather["weather_temp_c"],
+            "pp": weather["weather_precip_prob"],
+            "wind": weather["weather_wind_kmh"],
+            "day": weather["weather_is_day"],
+            "cloud": weather["cloud_cover"],
+            "precip": weather["precipitation"],
+        }
+    )
+    db.commit()
+    return {"ok": True}
 
 @router.get("/recommendations", response_model=list[ActivityOut])
 async def get_recommendations(

@@ -100,7 +100,20 @@ def update_activity(activity_id: str, payload: ActivitySuggestionIn, db: Session
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
     for field, value in payload.dict().items():
+        if field == "location":
+            geo_shape = shape(value)
+            value = from_shape(geo_shape, srid=4326)
+        if field == "created_at":
+            continue
         setattr(activity, field, value)
     db.commit()
     db.refresh(activity)
     return activity_to_schema(activity)
+
+@router.get("/activities/categories", response_model=list[str])
+def list_activity_categories(db: Session = Depends(get_session)):
+    """
+    Get all distinct activity categories.
+    """
+    categories = db.query(ActivitySuggestion.category).distinct().all()
+    return [c[0] for c in categories if c[0] is not None]

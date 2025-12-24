@@ -194,7 +194,7 @@ async def fetch_weather_slice(
         "forecast_days": 2,
     }
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.get(url, params=params)
         resp.raise_for_status()
         data = resp.json()

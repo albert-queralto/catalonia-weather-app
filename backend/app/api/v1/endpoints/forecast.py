@@ -25,10 +25,7 @@ def get_hourly_forecast(
             "precipitation_probability",
             "apparent_temperature",
             "cloud_cover",
-            "wind_speed_80m",
             "wind_speed_10m",
-            "wind_speed_120m",
-            "wind_speed_180m",
         ],
     }
     responses = openmeteo.weather_api(url, params=params)
@@ -39,10 +36,7 @@ def get_hourly_forecast(
     hourly_precipitation_probability = hourly.Variables(1).ValuesAsNumpy()
     hourly_apparent_temperature = hourly.Variables(2).ValuesAsNumpy()
     hourly_cloud_cover = hourly.Variables(3).ValuesAsNumpy()
-    hourly_wind_speed_80m = hourly.Variables(4).ValuesAsNumpy()
-    hourly_wind_speed_10m = hourly.Variables(5).ValuesAsNumpy()
-    hourly_wind_speed_120m = hourly.Variables(6).ValuesAsNumpy()
-    hourly_wind_speed_180m = hourly.Variables(7).ValuesAsNumpy()
+    hourly_wind_speed_10m = hourly.Variables(4).ValuesAsNumpy()
 
     hourly_data = {
         "date": pd.date_range(
@@ -55,10 +49,7 @@ def get_hourly_forecast(
         "precipitation_probability": hourly_precipitation_probability.tolist(),
         "apparent_temperature": hourly_apparent_temperature.tolist(),
         "cloud_cover": hourly_cloud_cover.tolist(),
-        "wind_speed_80m": hourly_wind_speed_80m.tolist(),
         "wind_speed_10m": hourly_wind_speed_10m.tolist(),
-        "wind_speed_120m": hourly_wind_speed_120m.tolist(),
-        "wind_speed_180m": hourly_wind_speed_180m.tolist(),
     }
 
     # Return as a list of dicts for each hour
@@ -69,10 +60,7 @@ def get_hourly_forecast(
             "precipitation_probability": hourly_data["precipitation_probability"][i],
             "apparent_temperature": hourly_data["apparent_temperature"][i],
             "cloud_cover": hourly_data["cloud_cover"][i],
-            "wind_speed_80m": hourly_data["wind_speed_80m"][i],
             "wind_speed_10m": hourly_data["wind_speed_10m"][i],
-            "wind_speed_120m": hourly_data["wind_speed_120m"][i],
-            "wind_speed_180m": hourly_data["wind_speed_180m"][i],
         }
         for i in range(len(hourly_data["date"]))
     ]

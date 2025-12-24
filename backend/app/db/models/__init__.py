@@ -8,6 +8,7 @@ from .meteocat import (
 )
 from .user import User, UserPreference
 from .activity_suggestion import ActivitySuggestion, Event
+from .category import Category
 
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "UserPreference",
     "ActivitySuggestion",
     "Event",
+    "Category",
 ]

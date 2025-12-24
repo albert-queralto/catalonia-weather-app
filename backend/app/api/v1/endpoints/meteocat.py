@@ -22,30 +22,30 @@ def get_meteocat_stations(db: Session = Depends(get_session)):
     return [s.__dict__ for s in stations]
 
 @router.post("/meteocat/stations/populate")
-def populate_meteocat_stations(estat: str = "ope", data: str = "2017-03-27Z"):
-    meteocat_client.fetch_and_store_meteocat_stations(estat, data)
+async def populate_meteocat_stations(estat: str = "ope", data: str = "2017-03-27Z"):
+    await meteocat_client.fetch_and_store_meteocat_stations(estat, data)
     return {"status": "ok"}
 
 @router.get(
     "/meteocat/station-measured/{codi_estacio}/{any}/{mes}/{dia}",
     response_model=List[StationMeasuredData]
 )
-def get_station_measured_data(
+async def get_station_measured_data(
     codi_estacio: str,
     any: int,
     mes: int,
     dia: int,
 ):
-    data = meteocat_client.fetch_station_measured_data(codi_estacio, any, mes, dia)
+    data = await meteocat_client.fetch_station_measured_data(codi_estacio, any, mes, dia)
     return data
 
 @router.post("/meteocat/station/{codi_estacio}/variables/metadata/store")
-def store_station_variable_metadata(
+async def store_station_variable_metadata(
     codi_estacio: str,
     estat: str = "ope",
     data: str = None,
 ):
-    meteocat_client.fetch_and_store_station_variable_metadata(codi_estacio, estat, data)
+    await meteocat_client.fetch_and_store_station_variable_metadata(codi_estacio, estat, data)
     return {"status": "ok"}
 
 @router.post("/meteocat/station/{codi_estacio}/{any}/{mes}/{dia}/variables/store")
@@ -95,7 +95,7 @@ def store_all_stations_variable_values(
         return {"status": "ok"}
     
 @router.post("/meteocat/stations/variables/metadata/store-all")
-def store_all_stations_variable_metadata_sync(
+async def store_all_stations_variable_metadata_sync(
     estat: str = "ope",
     data: str = '2017-03-27Z',
 ):
@@ -106,7 +106,7 @@ def store_all_stations_variable_metadata_sync(
         station_codes = [station.codi for station in stations]
 
         for codi_estacio in station_codes:
-            meteocat_client.fetch_and_store_station_variable_metadata(
+            await meteocat_client.fetch_and_store_station_variable_metadata(
                 codi_estacio, estat, data
             )
     finally:

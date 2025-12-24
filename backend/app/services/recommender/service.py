@@ -51,7 +51,7 @@ class MLRecommender:
             base += 2.0 * float(features.get("cat_weight", 0.0))
             base += 0.5 * float(features.get("tag_overlap", 0.0))
             base -= 0.15 * float(features.get("distance_km", 0.0))
-            base -= 2.0 * float(features.get("precip_penalty", 0.0))
+            base -= 1.0 * float(features.get("precip_penalty", 0.0))
             base -= 0.5 * float(features.get("wind_penalty", 0.0))
             return float(base)
 

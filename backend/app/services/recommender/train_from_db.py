@@ -70,6 +70,9 @@ def main():
         engine,
         parse_dates=["ts"],
     )
+    
+    if len(outcomes) == 0:
+        raise SystemExit("No positive events (click/save) found in the data. Cannot train model.")
 
     # 3) Label impressions as positive if an outcome occurs within label window after impression
     # Merge on (user, activity) then check time difference
@@ -188,6 +191,8 @@ def main():
     # Handle imbalance
     pos = y_train.sum()
     neg = len(y_train) - pos
+    if pos == 0:
+        raise SystemExit("No positive events in training data. Cannot train model.")
     scale_pos_weight = (neg / max(pos, 1))
 
     model = LGBMClassifier(

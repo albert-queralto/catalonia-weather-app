@@ -1,5 +1,6 @@
 from .models import (
     ActivitySuggestion,
+    Category,
     Comarca,
     Event,
     MeteocatStation,
@@ -13,6 +14,7 @@ from .models import (
 
 __all__ = [
     "ActivitySuggestion",
+    "Category",
     "Comarca",
     "Event",
     "MeteocatStation",

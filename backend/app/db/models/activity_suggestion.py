@@ -20,7 +20,7 @@ class ActivitySuggestion(Base):
     __tablename__ = "activities"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(Text, nullable=False)
-    category = Column(String, nullable=False)
+    category = Column(String, ForeignKey("categories.name", ondelete="SET NULL"), nullable=False)
     tags = Column(ARRAY(String), nullable=False, default=list)
     indoor = Column(Boolean, nullable=False, default=False)
     covered = Column(Boolean, nullable=False, default=False)

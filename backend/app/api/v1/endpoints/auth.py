@@ -72,3 +72,7 @@ def me(user: User = Depends(get_current_user)):
         MeOut: The user's public information.
     """
     return MeOut(id=user.id, email=user.email, role=user.role, is_active=user.is_active)  # type: ignore
+
+@router.get("/users")
+def list_users(db: Session = Depends(get_session)):
+    return db.query(User).all()
