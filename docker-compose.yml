@@ -122,17 +122,27 @@ services:
     image: python:3.11-slim
     working_dir: /work/recommender
     volumes:
-      - ./recommender:/work/recommender
+      - .:/work/recommender
       - ./models:/work/models
     environment:
-      PG_URL: postgresql+psycopg2://weather:weather@postgres:5432/activities
+      PG_URL: postgresql+psycopg2://weather:weather@postgres:5432/weather
       MODEL_OUT: /work/models/recommender.joblib
       LOOKBACK_DAYS: 30
       LABEL_WINDOW_DAYS: 7
     depends_on:
       - postgres
-    command: bash -lc "pip install -r requirements.txt && python train_from_db.py"
-
+    command: bash -c "apt-get update && apt-get install -y libgomp1 && pip install -r backend/requirements.txt && python backend/app/services/recommender/train_from_db.py"
+  
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+      - frontend
 
 volumes:
   pgdata:
