@@ -1,28 +1,35 @@
 # Catalunya Weather (React + FastAPI + Redis + PostGIS + Celery/RabbitMQ)
 
-Catalunya-focused weather web app that started as a hobby project.
+A full-stack web application focused on Catalonia, providing real-time weather, air quality, warning data with interactive maps and advanced backend processing, as well as activity recommendations based on weather conditions.
+
 
 ## Stack
-- **Frontend:** React (Vite) + Leaflet + MUI + Recharts + TypeScript
-- **Backend:** FastAPI (Python, async)
+- **Frontend:** React (Vite), TypeScript, Leaflet, MUI, Recharts
+- **Backend:** FastAPI (async Python), SQLAlchemy, GeoAlchemy2
+- **Database:** PostgreSQL + PostGIS
 - **Cache:** Redis
-- **DB:** Postgres + PostGIS (SQLAlchemy async + GeoAlchemy2)
-- **Jobs:** Celery worker + Celery Beat (broker: RabbitMQ)
+- **Jobs:** Celery + Celery Beat (RabbitMQ broker)
+- **Other:** Docker, Alembic (migrations), pandas
 
 ## Features
 
-- Interactive Catalonia map with:
-  - Real-time air quality data (Open-Meteo API) visualized by station, with colormap overlays and comarques boundaries.
-  - Weather station data (Meteocat) and variable selection.
-  - Modal popups with hourly air quality charts (Recharts).
-  - Hover tooltips for station markers.
-  - Comarques boundaries overlay (GeoJSON, materialized view, and caching for performance).
-  - Episodis Oberts (warnings) map with period selection and colored overlays.
-- Backend API:
-  - Endpoints for current and hourly air quality, weather, radar, and comarques lookup.
-  - Materialized view and caching for fast comarques GeoJSON.
-  - Async data fetching, pandas DataFrame processing, and robust schema alignment.
-- Celery periodic tasks for data refresh, caching, and notification evaluation.
+### Interactive Map & Data
+
+### Backend API
+
+- Endpoints for:
+  - Current and hourly air quality, weather, and comarques lookup
+  - Materialized view and caching for fast comarques GeoJSON
+  - Async data fetching, pandas DataFrame processing, robust schema alignment
+- Celery periodic tasks for data refresh, and caching
+
+### Celery Periodic Tasks
+
+- Refresh radar timestamps
+- Refresh alerts
+- Cache comarca forecasts (hourly)
+- Schedules adjustable in `backend/app/workers/celery_app.py`
+
 
 ## Quickstart
 ```bash
@@ -59,18 +66,15 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 - `GET /api/v1/comarcas/lookup?lat=..&lon=..` — Find comarca by coordinates.
 - `GET /api/v1/forecast/comarca/lookup?lat=..&lon=..` — Forecast by comarca.
 
-### Radar
-- `GET /api/v1/radar/timestamps`
-- `GET /api/v1/radar/tiles/{timestamp}/{z}/{x}/{y}.png`
-
 ### Episodis Oberts (Warnings)
 - `GET /api/v1/meteocat/episodis-oberts` — List of current warnings, with affected comarques and periods.
 
 ## Frontend Features
 
-- `/` — Main dashboard with Catalonia map, air quality, and weather overlays.
+- `/` — Main dashboard with activity recommendations.
+- Historical Data: View past weather data by date.
 - Air Quality Map: Select parameter, see colormap, hover for tooltip, click for hourly modal.
-- Episodis Oberts Map: See warnings by period, colored overlays, and tooltips.
+- Meteo Alerts: See warnings by period, colored overlays, and tooltips.
 - Responsive UI with MUI and Recharts.
 
 ## Backend Features
@@ -91,8 +95,29 @@ The schedules can be adjusted in `backend/app/workers/celery_app.py`.
 
 ---
 
-**Development notes:**
-- All code is type-checked and linted.
-- See `frontend/src/components/AirQualityMap.tsx` and `frontend/src/components/EpisodisOberts.tsx` for main map logic.
-- See `backend/app/api/v1/endpoints/` for all API routes.
-- See `backend/app/services/air_quality/service.py` for air quality data logic.
+## Development Notes
+
+- All code is type-checked and linted
+- Main map logic: [frontend/src/components/AirQualityMap.tsx](frontend/src/components/AirQualityMap.tsx), [frontend/src/components/EpisodisOberts.tsx](frontend/src/components/EpisodisOberts.tsx)
+- All API routes: [backend/app/api/v1/endpoints/](backend/app/api/v1/endpoints/)
+- Air quality data logic: [backend/app/services/air_quality/service.py](backend/app/services/air_quality/service.py)
+- Celery/worker logic: [backend/app/workers/](backend/app/workers/)
+- Database models: [backend/app/db/models/](backend/app/db/models/)
+- Alembic migrations: [backend/alembic/versions/](backend/alembic/versions/)
+
+---
+
+## Project Structure
+
+- `frontend/` — React app (Vite, TypeScript)
+- `backend/` — FastAPI app, DB models, services, workers
+- `docker/` — Docker, Nginx, DB init scripts
+- `models/` — ML models (e.g., recommender.joblib)
+- `data/` — Sample data (e.g., comarcas_sample.geojson)
+- `scripts/` — Utility scripts (e.g., load_comarcas.py)
+
+---
+
+## License
+
+MIT License

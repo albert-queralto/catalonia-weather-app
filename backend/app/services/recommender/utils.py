@@ -9,7 +9,7 @@ def get_weather_for_event(lat: float, lon: float, event_time: str):
     Fetch hourly weather data and match to the event_time (ISO string).
     Returns a dict with weather fields for the closest hour.
     """
-    url = f"http://localhost:{API_PORT}/api/v1/openmeteo/hourly-forecast"
+    url = f"https://localhost:{API_PORT}/api/v1/openmeteo/hourly-forecast"
     params = {"latitude": lat, "longitude": lon}
     resp = requests.get(url, params=params)
     resp.raise_for_status()
