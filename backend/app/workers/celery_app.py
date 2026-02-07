@@ -24,6 +24,11 @@ celery_app.conf.update(
 
 # Periodic tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    "deactivate-inactive-users-daily": {
+        "task": "app.workers.tasks.deactivate_inactive_users",
+        "schedule": crontab(hour=0, minute=0),  # every day at midnight
+        "args": (90,),  # deactivate users inactive for 90 days
+    },
     # "refresh-radar-timestamps-every-5-min": {
     #     "task": "app.workers.tasks.refresh_radar_timestamps",
     #     "schedule": 300.0,

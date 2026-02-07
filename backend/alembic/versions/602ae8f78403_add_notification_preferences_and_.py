@@ -1,4 +1,4 @@
-"""Add notification_preferences and favorite_comarques to users
+"""Add notification_preferences, favorite_comarques and last_login to users
 
 Revision ID: 602ae8f78403
 Revises: 235f52e6f362
@@ -22,10 +22,11 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.add_column('users', sa.Column('notification_preferences', sa.Boolean(), nullable=False, server_default=sa.true()))
     op.add_column('users', sa.Column('favorite_comarques', sa.ARRAY(sa.String()), nullable=False, server_default='{}'))
-
+    op.add_column('users', sa.Column('last_login', sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column('users', 'favorite_comarques')
     op.drop_column('users', 'notification_preferences')
+    op.drop_column('users', 'last_login')
