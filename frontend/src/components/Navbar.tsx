@@ -121,6 +121,7 @@ export default function Navbar() {
           {navLink("/historical", "Historical data", "historical-data")}
           {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
           {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
+          {navLink("/profile", "Profile", "profile")}
 
           {user.role === "admin" && (
             dropdownMenu(
@@ -132,6 +133,7 @@ export default function Navbar() {
                 navLink("/manage-categories", "Manage categories", "manage-categories"),
                 navLink("/populate", "Populate data", "populate-data"),
                 navLink("/ml-model-trainer", "ML Trainer", "ml-model-trainer"),
+                navLink("/user-management", "User management", "user-management"),
               ]
             )
           )}

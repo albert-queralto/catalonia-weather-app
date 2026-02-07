@@ -12,6 +12,8 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 export default function ManageCategoriesPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
@@ -21,7 +23,7 @@ export default function ManageCategoriesPage() {
   const [error, setError] = useState("");
 
   const fetchCategories = () => {
-    fetch("/api/v1/categories")
+    fetch(`${API_BASE_URL}/categories`)
       .then(res => res.json())
       .then(setCategories)
       .catch(() => setError("Failed to fetch categories"));
@@ -35,7 +37,7 @@ export default function ManageCategoriesPage() {
     setError(""); setMessage("");
     if (!newCategory.trim()) return;
     try {
-      const res = await fetch(`/api/v1/categories?name=${encodeURIComponent(newCategory.trim())}`, {
+      const res = await fetch(`${API_BASE_URL}/categories?name=${encodeURIComponent(newCategory.trim())}`, {
         method: "POST"
       });
       if (!res.ok) {
@@ -60,7 +62,7 @@ export default function ManageCategoriesPage() {
     if (!editCategory || !editValue.trim()) return;
     setError(""); setMessage("");
     try {
-      const res = await fetch(`/api/v1/categories/${encodeURIComponent(editCategory)}?new_name=${encodeURIComponent(editValue.trim())}`, {
+      const res = await fetch(`${API_BASE_URL}/categories/${encodeURIComponent(editCategory)}?new_name=${encodeURIComponent(editValue.trim())}`, {
         method: "PUT"
       });
       if (!res.ok) {
@@ -80,7 +82,7 @@ export default function ManageCategoriesPage() {
     if (!window.confirm(`Delete category "${cat}"?`)) return;
     setError(""); setMessage("");
     try {
-      const res = await fetch(`/api/v1/categories/${encodeURIComponent(cat)}`, {
+      const res = await fetch(`${API_BASE_URL}/categories/${encodeURIComponent(cat)}`, {
         method: "DELETE",
       });
       if (!res.ok) {

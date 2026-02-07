@@ -4,6 +4,7 @@ import { Box, Button, Typography, Paper, Stack } from "@mui/material";
 import "leaflet/dist/leaflet.css";
 import { EpisodiObert } from "../api/types";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function getAffectedComarques(episodis, periodNom) {
   const affected = [];
@@ -40,7 +41,7 @@ export default function EpisodisObertsMap() {
   date.setDate(date.getDate() + dayOffset);
 
   useEffect(() => {
-        fetch("/api/v1/comarcas/geojson")
+        fetch(`${API_BASE_URL}/comarcas/geojson`)
         .then(res => res.json())
         .then(setComarcasGeoJson);
     }, []);
@@ -52,7 +53,7 @@ export default function EpisodisObertsMap() {
       const year = base.getFullYear();
       const month = String(base.getMonth() + 1).padStart(2, "0");
       const day = String(base.getDate()).padStart(2, "0");
-      fetch(`/api/v1/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
+      fetch(`${API_BASE_URL}/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
         .then(async res => {
           if (!res.ok) {
             const text = await res.text();

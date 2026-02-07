@@ -24,6 +24,8 @@ class ActivityRow:
     duration_minutes: int
     lat: float
     lon: float
+    validated: bool
+    created_at: datetime
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

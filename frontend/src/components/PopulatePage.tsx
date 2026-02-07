@@ -3,6 +3,8 @@ import { Box, Button, Typography, TextField, Alert, Stack, Divider } from '@mui/
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Tooltip, IconButton } from '@mui/material';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 type RecActivity = {
   id: string;
   name?: string;
@@ -80,7 +82,7 @@ export default function PopulatePage() {
     setMessage('');
     setError('');
     try {
-      const res = await fetch('/api/v1/meteocat/stations/populate', { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/meteocat/stations/populate`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to populate stations');
       setMessage('Stations populated successfully.');
     } catch (e: any) {
@@ -94,7 +96,7 @@ export default function PopulatePage() {
     setMessage('');
     setError('');
     try {
-      const res = await fetch('/api/v1/meteocat/stations/variables/metadata/store-all', { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/meteocat/stations/variables/metadata/store-all`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to populate variables metadata');
       setMessage('Variables metadata populated successfully.');
     } catch (e: any) {
@@ -110,7 +112,7 @@ export default function PopulatePage() {
     try {
       if (!startDate || !endDate) throw new Error('Please select a date range.');
       const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-      const res = await fetch(`/api/v1/meteocat/stations/variables/store-range?${params.toString()}`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/meteocat/stations/variables/store-range?${params.toString()}`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to populate variables for range');
       setMessage('Variables for date range are being processed.');
     } catch (e: any) {

@@ -10,21 +10,21 @@ from app.db.models.activity_suggestion import ActivitySuggestion
 from app.services.activity.schemas import ActivitySuggestionIn, ActivitySuggestionOut
 from app.services.activity.utils import activity_to_schema
 
-router = APIRouter()
+router = APIRouter(prefix="/activities", tags=["activities"])
 
-@router.get("/activities", response_model=list[ActivitySuggestionOut])
+@router.get("/", response_model=list[ActivitySuggestionOut])
 def list_activities(db: Session = Depends(get_session)):
     """List all activities (suggested and validated)."""
     activities = db.query(ActivitySuggestion).all()
     return [activity_to_schema(a) for a in activities]
 
-@router.get("/activities/pending", response_model=list[ActivitySuggestionOut])
+@router.get("/pending", response_model=list[ActivitySuggestionOut])
 def list_pending_activities(db: Session = Depends(get_session)):
     """List all pending (not yet validated) activities."""
     pending_activities = db.query(ActivitySuggestion).filter_by(validated=False).all()
     return [activity_to_schema(a) for a in pending_activities]
 
-@router.post("/activities/validate/{activity_id}", response_model=ActivitySuggestionOut)
+@router.post("/validate/{activity_id}", response_model=ActivitySuggestionOut)
 def validate_activity(activity_id: str, db: Session = Depends(get_session)):
     """Validate a pending activity (admin only)."""
     activity = db.query(ActivitySuggestion).filter_by(id=activity_id).first()
@@ -35,7 +35,7 @@ def validate_activity(activity_id: str, db: Session = Depends(get_session)):
     db.refresh(activity)
     return activity_to_schema(activity)
 
-@router.post("/activities/suggest", response_model=ActivitySuggestionOut)
+@router.post("/suggest", response_model=ActivitySuggestionOut)
 def suggest_activity(payload: ActivitySuggestionIn, db: Session = Depends(get_session)):
     """Suggest a new activity. The activity will be pending until validated by an admin."""
     geo_shape = shape(payload.location.dict())
@@ -58,7 +58,7 @@ def suggest_activity(payload: ActivitySuggestionIn, db: Session = Depends(get_se
     db.refresh(suggestion)
     return activity_to_schema(suggestion)
 
-@router.delete("/activities/{activity_id}", response_model=dict)
+@router.delete("/{activity_id}", response_model=dict)
 def delete_activity(activity_id: str, db: Session = Depends(get_session)):
     """
     Delete an activity by its ID.
@@ -80,7 +80,7 @@ def delete_activity(activity_id: str, db: Session = Depends(get_session)):
     db.commit()
     return {"detail": "Activity deleted"}
 
-@router.put("/activities/{activity_id}", response_model=ActivitySuggestionOut)
+@router.put("/{activity_id}", response_model=ActivitySuggestionOut)
 def update_activity(activity_id: str, payload: ActivitySuggestionIn, db: Session = Depends(get_session)):
     """
     Update an activity by its ID.
@@ -110,7 +110,7 @@ def update_activity(activity_id: str, payload: ActivitySuggestionIn, db: Session
     db.refresh(activity)
     return activity_to_schema(activity)
 
-@router.get("/activities/categories", response_model=list[str])
+@router.get("/categories", response_model=list[str])
 def list_activity_categories(db: Session = Depends(get_session)):
     """
     Get all distinct activity categories.

@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import os
+import sys
+from pathlib import Path
+
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from uuid import UUID
 from datetime import datetime
+
+MAIN_PATH = str(Path(__file__).resolve().parents[3])
+if MAIN_PATH not in sys.path:
+    sys.path.append(MAIN_PATH)
+    
+print(f"Added {MAIN_PATH} to sys.path for imports")
+from app.services.activity.schemas import GeoJSONPoint
 
 EventType = Literal["view", "click", "save", "complete", "dismiss"]
 
@@ -50,4 +61,9 @@ class ActivityOut(BaseModel):
     score: float
     reason: str
 
+    location: GeoJSONPoint
+    created_at: datetime
+    validated: bool
+
     request_id: Optional[UUID] = None
+

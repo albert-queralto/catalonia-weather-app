@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     recommender,
     activities,
     category,
+    user,
 )
 
 api_router = APIRouter()
@@ -24,3 +25,4 @@ api_router.include_router(forecast.router, prefix="/v1", tags=["forecast"])
 api_router.include_router(recommender.router, prefix="/v1", tags=["recommender"])
 api_router.include_router(activities.router, prefix="/v1", tags=["activities"])
 api_router.include_router(category.router, prefix="/v1", tags=["categories"])
+api_router.include_router(user.router, prefix="/v1", tags=["users"])

@@ -118,6 +118,11 @@ export type TokenOut = {
   token_type: "bearer";
 };
 
+export interface GeoJSONPoint {
+  type: "Point";
+  coordinates: [number, number]; // [lon, lat]
+}
+
 export type ActivityOut = {
   id: string;
   name: string;
@@ -132,6 +137,9 @@ export type ActivityOut = {
   score: number;
   reason: string;
   request_id?: string | null;
+  location: GeoJSONPoint;
+  created_at?: string;
+  validated: boolean;
 };
 
 export type EventIn = {
