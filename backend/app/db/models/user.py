@@ -17,6 +17,9 @@ class User(Base):
     notification_preferences = Column(Boolean, nullable=False, default=True)
     favorite_comarques = Column(ARRAY(String), nullable=False, default=[])
     last_login = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+    is_verified = Column(Boolean, nullable=False, default=False)
+    verification_token = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True)
 
 class UserPreference(Base):
     __tablename__ = "user_preferences"

@@ -122,6 +122,8 @@ export default function Navbar() {
           {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
           {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
           {navLink("/profile", "Profile", "profile")}
+          {/* Show Verify Email only if user is not verified */}
+          {user.is_verified === false && navLink("/verify-email", "Verify Email", "verify-email")}
 
           {user.role === "admin" && (
             dropdownMenu(
@@ -146,6 +148,8 @@ export default function Navbar() {
         <>
           {navLink("/login", "Login")}
           {navLink("/register", "Register")}
+          {/* Show password reset links only when not logged in */}
+          {navLink("/request-password-reset", "Request Password Reset", "request-password-reset")}
         </>
       ) : (
         <>

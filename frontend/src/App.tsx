@@ -19,6 +19,10 @@ import ManageCategoriesPage from './components/ManageCategoriesPage';
 import LandingPage from './components/LandingPage';
 import UserProfilePage from './components/UserProfilePage';
 import UserManagementPage from './components/UserManagementPage';
+import VerifyEmailPage from "./components/EmailVerification";
+import RequestPasswordResetPage from "./components/PasswordResetRequest";
+import ResetPasswordPage from "./components/PasswordReset";
+
 
 function AppRoutes() {
   const { user } = useAuth();
@@ -67,6 +71,9 @@ function AppRoutes() {
             <UserManagementPage />
           </ProtectedRoute>
         } />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/request-password-reset" element={<RequestPasswordResetPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Routes>
     </>
   );
