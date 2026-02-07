@@ -1,30 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import L from "leaflet";
 import { useAuth } from "../auth/AuthContext";
 import { getRecommendations, postEvent } from "../api/endpoints";
-import { TextField, Button, Box } from '@mui/material';
+import { TextField, Button } from '@mui/material';
 import type { ActivityOut } from "../api/types";
-
-function osmRasterStyle() {
-  return {
-    version: 8,
-    sources: {
-      osm: {
-        type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "© OpenStreetMap contributors"
-      }
-    },
-    layers: [{ id: "osm", type: "raster", source: "osm" }]
-  } as any;
-}
+import 'leaflet/dist/leaflet.css';
 
 export default function RecommenderHome() {
   const { token, user } = useAuth();
-  const [lat, setLat] = useState<number>(41.3851); // default Barcelona-ish
+  const [lat, setLat] = useState<number>(41.3851);
   const [lon, setLon] = useState<number>(2.1734);
-  const [radiusKm, setRadiusKm] = useState(8); // default 8 km
+  const [radiusKm, setRadiusKm] = useState(8);
   const [recs, setRecs] = useState<ActivityOut[]>([]);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -32,22 +18,27 @@ export default function RecommenderHome() {
   const [limit, setLimit] = useState(20);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapObj = useRef<maplibregl.Map | null>(null);
-  const markers = useRef<maplibregl.Marker[]>([]);
+  const mapObj = useRef<L.Map | null>(null);
+  const markers = useRef<L.Marker[]>([]);
+  const userMarkerRef = useRef<L.Marker | null>(null);
 
-  const center = useMemo(() => [lon, lat] as [number, number], [lon, lat]);
+  const center = useMemo(() => [lat, lon] as [number, number], [lat, lon]);
 
   useEffect(() => {
     if (!mapRef.current || mapObj.current) return;
 
-    const map = new maplibregl.Map({
-      container: mapRef.current,
-      style: osmRasterStyle(),
-      center,
-      zoom: 11
+    const map = L.map(mapRef.current).setView(center, 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      setLat(e.latlng.lat);
+      setLon(e.latlng.lng);
+      setStatus(`Selected location: ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
     });
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapObj.current = map;
 
     return () => {
@@ -58,12 +49,20 @@ export default function RecommenderHome() {
   }, []);
 
   useEffect(() => {
-    if (mapObj.current) mapObj.current.setCenter(center);
-  }, [center]);
+    if (mapObj.current) {
+      mapObj.current.setView(center, mapObj.current.getZoom());
+      renderMarkers(recs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center, recs]);
 
   function clearMarkers() {
     for (const m of markers.current) m.remove();
     markers.current = [];
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+      userMarkerRef.current = null;
+    }
   }
 
   async function useGeolocation() {
@@ -84,10 +83,9 @@ export default function RecommenderHome() {
     setStatus("Fetching recommendations…");
     try {
       const data = await getRecommendations(token, lat, lon, radiusKm, horizonHours, limit);
+      console.log("Received recommendations:", data);
       setRecs(data);
       setStatus(`Got ${data.length} recommendations.`);
-      renderMarkers(data);
-      // impressions (“view”) ideally logged server-side in /recommendations
     } catch (e: any) {
       setStatus(e?.message ?? "Failed to fetch recommendations");
     } finally {
@@ -95,18 +93,51 @@ export default function RecommenderHome() {
     }
   }
 
+  // Define custom icons
+  const userIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png', // default blue
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
+  });
+
+  const activityIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', // red marker
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
+  });
+
   function renderMarkers(data: ActivityOut[]) {
     if (!mapObj.current) return;
     clearMarkers();
 
-    // Note: your backend response does not include lat/lon. If you want markers,
-    // add lat/lon to ActivityOut from backend. For now, we only mark the user.
-    const userMarker = new maplibregl.Marker({ color: "#111" })
-      .setLngLat([lon, lat])
-      .setPopup(new maplibregl.Popup().setText("You are here"))
-      .addTo(mapObj.current);
+    // User marker
+    const userMarker = L.marker([lat, lon], { icon: userIcon })
+      .addTo(mapObj.current)
+      .bindPopup("You are here");
+    userMarkerRef.current = userMarker;
 
-    markers.current.push(userMarker);
+    // Activity markers
+    data.forEach(activity => {
+      console.log("Rendering marker for activity:", activity);
+      if (
+        activity.location &&
+        Array.isArray(activity.location.coordinates) &&
+        activity.location.coordinates.length === 2
+      ) {
+        // GeoJSON: [lon, lat], Leaflet: [lat, lon]
+        const [lon, lat] = activity.location.coordinates;
+        const marker = L.marker([lat, lon], {
+          icon: activityIcon
+        })
+          .addTo(mapObj.current)
+          .bindPopup(`<b>${activity.name}</b><br/>${activity.category}`);
+        markers.current.push(marker);
+      }
+    });
   }
 
   async function sendEvent(activity: ActivityOut, event_type: "click" | "save" | "dismiss") {
@@ -187,7 +218,6 @@ export default function RecommenderHome() {
             <div key={r.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 12, marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <b>{r.name}</b>
-                {/*<span>score: {Number(r.score).toFixed(3)}</span>*/}
               </div>
               <div style={{ marginTop: 6 }}>
                 {r.category} • {r.indoor ? "indoor" : "outdoor"} • {r.distance_km.toFixed(2)} km
@@ -229,7 +259,8 @@ export default function RecommenderHome() {
             <div ref={mapRef} style={{ height: 520 }} />
           </div>
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-            Note: to show activity markers, include activity lat/lon in the backend response (extend ActivityOut).
+            Click the map to select latitude and longitude.<br />
+            Activity markers are shown if location is available.<br />
           </div>
         </div>
       </div>

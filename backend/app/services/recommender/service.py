@@ -93,7 +93,8 @@ def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> L
         id::text, name, category, tags, indoor, covered,
         price_level, difficulty, duration_minutes,
         ST_Y(location::geometry) AS lat,
-        ST_X(location::geometry) AS lon
+        ST_X(location::geometry) AS lon,
+        validated, created_at
       FROM activities
       WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lon,:lat),4326)::geography, :meters)
       LIMIT 500
@@ -115,6 +116,8 @@ def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> L
             duration_minutes=int(r[8]),
             lat=float(r[9]),
             lon=float(r[10]),
+            validated=bool(r[11]),
+            created_at=r[12],
         ))
     return out
 
@@ -166,6 +169,12 @@ def recommend(
             "difficulty": a.difficulty,
             "duration_minutes": a.duration_minutes,
             "distance_km": float(dist),
+            "location": {
+                "type": "Point",
+                "coordinates": [a.lon, a.lat],
+            },
+            "validated": a.validated,
+            "created_at": a.created_at.isoformat(),
             "score": float(s),
             "reason": reason_text(a, weather_precip_prob, weather_temp_c),
         })

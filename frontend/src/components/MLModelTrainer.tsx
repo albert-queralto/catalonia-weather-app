@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Button, MenuItem, TextField, Typography, Alert, Stack, Divider } from "@mui/material";
 import dayjs from "dayjs";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 function getAuthToken(): string | null {
   return (
     localStorage.getItem('auth.token') ||
@@ -45,11 +47,11 @@ export default function MLModelTrainer() {
   const [recBusy, setRecBusy] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/meteocat/stations")
+    fetch(`${API_BASE_URL}/meteocat/stations`)
       .then(res => res.json())
       .then(setStations);
 
-    fetch("/api/v1/ml/models")
+    fetch(`${API_BASE_URL}/ml/models`)
       .then(res => res.json())
       .then(data => setModels(Array.isArray(data.models) ? data.models : []))
       .catch(() => setModels([]));
@@ -64,7 +66,7 @@ export default function MLModelTrainer() {
     setResult(null);
     setError(null);
     try {
-      const resp = await fetch("/api/v1/ml/train", {
+      const resp = await fetch(`${API_BASE_URL}/ml/train`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

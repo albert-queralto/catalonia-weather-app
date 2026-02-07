@@ -15,6 +15,7 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const LS_TOKEN = "token";
 
@@ -26,12 +27,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function fetchUser() {
       if (!token) {
+        console.log("No token found, user is not authenticated.");
         setUser(null);
         return;
       }
-      const res = await fetch("/api/v1/auth/me", {
+      console.log("Sending token in Authorization header:", token);
+      const res = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log("Response status for /auth/me:", res.status);
       if (res.ok) {
         setUser(await res.json());
       } else {
@@ -44,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   async function login(email: string, password: string) {
-    const res = await fetch("/api/v1/auth/token", {
+    const res = await fetch(`${API_BASE_URL}/auth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ username: email, password }),
@@ -57,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.access_token);
     localStorage.setItem(LS_TOKEN, data.access_token);
     // Fetch user info after login
-    const meRes = await fetch("/api/v1/auth/me", {
+    const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${data.access_token}` }
     });
     if (meRes.ok) {

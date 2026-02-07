@@ -4,6 +4,8 @@ import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 type Activity = {
   id: string;
   name: string;
@@ -48,14 +50,14 @@ export default function AllActivitiesPage() {
 
   const fetchActivities = () => {
     setError("");
-    fetch("/api/v1/activities")
+    fetch(`${API_BASE_URL}/activities`)
       .then(res => res.json())
       .then(setActivities)
       .catch(e => setError("Failed to fetch activities"));
   };
 
   const fetchCategories = () => {
-    fetch("/api/v1/categories")
+    fetch(`${API_BASE_URL}/categories`)
       .then(res => res.json())
       .then(setCategories)
       .catch(() => setCategories([]));
@@ -70,7 +72,7 @@ export default function AllActivitiesPage() {
     if (window.confirm("Delete this activity?")) {
       setError(""); setMessage("");
       try {
-        const res = await fetch(`/api/v1/activities/${id}`, { method: "DELETE" });
+        const res = await fetch(`${API_BASE_URL}/activities/${id}`, { method: "DELETE" });
         if (!res.ok) throw new Error("Failed to delete activity");
         setMessage("Activity deleted!");
         fetchActivities();
@@ -113,7 +115,7 @@ export default function AllActivitiesPage() {
           ],
         },
       };
-      const res = await fetch(`/api/v1/activities/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/activities/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -131,7 +133,7 @@ export default function AllActivitiesPage() {
   const handleValidate = async (id: string) => {
     setError(""); setMessage("");
     try {
-      const res = await fetch(`/api/v1/activities/validate/${id}`, { method: "POST" });
+      const res = await fetch(`${API_BASE_URL}/activities/validate/${id}`, { method: "POST" });
       if (!res.ok) throw new Error("Failed to validate activity");
       setMessage("Activity validated!");
       setActivities(acts => acts.map(a => a.id === id ? { ...a, validated: true } : a));

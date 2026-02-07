@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 export default function RegisterPage() {
-  const { register } = useAuth();
   const nav = useNavigate();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,7 +18,29 @@ export default function RegisterPage() {
     setErr(null);
     setBusy(true);
     try {
-      await register(email, password);
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        // If response is not JSON, fallback to text
+        data = { detail: await res.text() };
+      }
+      if (!res.ok) {
+        // Try to extract a user-friendly error message
+        let message = "Registration failed";
+        if (typeof data.detail === "string") {
+          message = data.detail.replace(/^Value error,?\s*/i, "");
+        } else if (Array.isArray(data.detail) && data.detail.length > 0 && data.detail[0].msg) {
+          message = data.detail[0].msg.replace(/^Value error,?\s*/i, "");
+        }
+        throw new Error(message);
+      }
+      await login(email, password);
       nav("/");
     } catch (e: any) {
       setErr(e?.message ?? "Register failed");

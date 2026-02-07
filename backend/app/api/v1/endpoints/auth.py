@@ -57,7 +57,7 @@ def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     if not user or not user.is_active or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
 
-    jwt_ = create_access_token(subject=str(user.id))
+    jwt_ = create_access_token(subject=str(user.id), expires_minutes=60)
     return TokenOut(access_token=jwt_)
 
 @router.get("/me", response_model=MeOut)

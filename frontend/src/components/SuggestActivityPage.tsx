@@ -14,6 +14,8 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 // Fix default marker icon for Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -77,7 +79,7 @@ export default function SuggestActivityPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/v1/categories")
+    fetch(`${API_BASE_URL}/categories`)
       .then(res => res.json())
       .then(setCategories)
       .catch(() => setCategories([]));
@@ -109,7 +111,7 @@ export default function SuggestActivityPage() {
         },
       };
 
-      const res = await fetch("/api/v1/activities/suggest", {
+      const res = await fetch(`${API_BASE_URL}/activities/suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

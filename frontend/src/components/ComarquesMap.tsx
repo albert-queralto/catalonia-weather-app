@@ -38,6 +38,8 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 // Helper component to center the map when requested
 function CenterMapToStation({ station }: { station: any }) {
   const map = useMap();
@@ -68,11 +70,11 @@ export default function ComarquesMap() {
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
-    fetch('/api/v1/comarcas/geojson')
+    fetch(`${API_BASE_URL}/comarcas/geojson`)
       .then(res => res.json())
       .then(setGeojson);
 
-    fetch('/api/v1/meteocat/stations')
+    fetch(`${API_BASE_URL}/meteocat/stations`)
       .then(res => res.json())
       .then(async stationsData => {
         setStations(stationsData);
@@ -80,7 +82,7 @@ export default function ComarquesMap() {
         const vars: { [codi: string]: any[] } = {};
         await Promise.all(
           stationsData.map(async (station: any) => {
-            const res = await fetch(`/api/v1/meteocat/station/${station.codi}/variables`);
+            const res = await fetch(`${API_BASE_URL}/meteocat/station/${station.codi}/variables`);
             const data = await res.json();
             vars[station.codi] = data;
           })
@@ -121,7 +123,7 @@ export default function ComarquesMap() {
     setSelectedVariable('');
     setDate('');
     // Fetch variables metadata for this station
-    const res = await fetch(`/api/v1/meteocat/station/${station.codi}/variables`);
+    const res = await fetch(`${API_BASE_URL}/meteocat/station/${station.codi}/variables`);
     const data = await res.json();
     setVariables(data);
   };
@@ -135,7 +137,7 @@ export default function ComarquesMap() {
       date_to: dateTo,
     });
     const res = await fetch(
-      `/api/v1/meteocat/station/${selectedStation.codi}/variable/${selectedVariable}/values?${params.toString()}`
+      `${API_BASE_URL}/meteocat/station/${selectedStation.codi}/variable/${selectedVariable}/values?${params.toString()}`
     );
     const data = await res.json();
     setVariableData(data);
