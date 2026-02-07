@@ -71,7 +71,7 @@ def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     """
     # OAuth2PasswordRequestForm uses form fields: username + password
     user = db.execute(select(User).where(User.email == form.username)).scalar_one_or_none()
-    if not user or not user.is_active or not verify_password(form.password, user.password_hash):
+    if not user or not user.is_active or not verify_password(form.password, user.password_hash) or not user.is_verified:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
 
     user.last_login = datetime.now(timezone.utc)
