@@ -2,6 +2,7 @@
 
 A full-stack web application focused on Catalonia, providing real-time weather, air quality, warning data with interactive maps and advanced backend processing, as well as activity recommendations based on weather conditions.
 
+---
 
 ## Stack
 - **Frontend:** React (Vite), TypeScript, Leaflet, MUI, Recharts
@@ -11,25 +12,39 @@ A full-stack web application focused on Catalonia, providing real-time weather, 
 - **Jobs:** Celery + Celery Beat (RabbitMQ broker)
 - **Other:** Docker, Alembic (migrations), pandas
 
+---
+
 ## Features
 
-### Interactive Map & Data
+### User Experience
+- Responsive UI with MUI and Recharts
+- Interactive maps for weather, air quality, and warnings
+- User authentication (JWT-based), registration, and role-based access
+- Activity recommendations based on weather and user preferences
+- Historical data visualization
+- Air quality and weather alerts
+- User profile and preferences (planned)
+- Dark mode (planned)
+- PWA/offline support (planned)
 
 ### Backend API
-
 - Endpoints for:
   - Current and hourly air quality, weather, and comarques lookup
   - Materialized view and caching for fast comarques GeoJSON
   - Async data fetching, pandas DataFrame processing, robust schema alignment
 - Celery periodic tasks for data refresh, and caching
+- Role-based access and admin endpoints
+- JWT authentication with configurable expiration
+- Audit logging and error handling (planned)
+- Email verification and password reset (planned)
 
 ### Celery Periodic Tasks
-
 - Refresh radar timestamps
 - Refresh alerts
 - Cache comarca forecasts (hourly)
 - Schedules adjustable in `backend/app/workers/celery_app.py`
 
+---
 
 ## Quickstart
 ```bash
@@ -47,6 +62,8 @@ Frontend:
 RabbitMQ management UI:
 - http://localhost:15672 (admin/admin)
 
+---
+
 ## Database migration + sample comarca load
 ```bash
 docker compose exec api alembic upgrade head
@@ -54,7 +71,9 @@ docker compose exec api python scripts/load_comarcas.py
 ```
 The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 
-## Key endpoints
+---
+
+## Key Endpoints
 
 ### Weather & Air Quality
 - `GET /api/v1/meteocat/stations` — List all Meteocat stations.
@@ -69,13 +88,26 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 ### Episodis Oberts (Warnings)
 - `GET /api/v1/meteocat/episodis-oberts` — List of current warnings, with affected comarques and periods.
 
+### Auth & Users
+- `POST /api/v1/auth/register` — Register a new user
+- `POST /api/v1/auth/token` — Obtain JWT token
+- `GET /api/v1/auth/me` — Get current user info
+
+---
+
 ## Frontend Features
 
 - `/` — Main dashboard with activity recommendations.
-- Historical Data: View past weather data by date.
-- Air Quality Map: Select parameter, see colormap, hover for tooltip, click for hourly modal.
-- Meteo Alerts: See warnings by period, colored overlays, and tooltips.
-- Responsive UI with MUI and Recharts.
+- `/login` — User login
+- `/register` — User registration
+- `/historical` — View past weather data by date.
+- `/air-quality-map` — Select parameter, see colormap, hover for tooltip, click for hourly modal.
+- `/episodis-oberts` — See warnings by period, colored overlays, and tooltips.
+- `/suggest-activity` — Suggest activities based on weather
+- `/activities` — List all activities
+- `/manage-categories` — Admin: manage activity categories
+
+---
 
 ## Backend Features
 
@@ -84,14 +116,8 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 - Redis caching for GeoJSON and other heavy endpoints.
 - Data ingestion and transformation with pandas.
 - Celery tasks for periodic data refresh and notification rule evaluation.
-
-## Celery periodic tasks
-Celery Beat runs:
-- Refresh radar timestamps
-- Refresh alerts
-- Cache comarca forecasts (hourly)
-
-The schedules can be adjusted in `backend/app/workers/celery_app.py`.
+- Role-based access and admin endpoints.
+- JWT authentication and user management.
 
 ---
 
@@ -115,6 +141,19 @@ The schedules can be adjusted in `backend/app/workers/celery_app.py`.
 - `models/` — ML models (e.g., recommender.joblib)
 - `data/` — Sample data (e.g., comarcas_sample.geojson)
 - `scripts/` — Utility scripts (e.g., load_comarcas.py)
+
+---
+
+## Roadmap / Planned Improvements
+
+- User profile and preferences
+- Dark mode and accessibility improvements
+- PWA/offline support
+- Email verification and password reset
+- Push notifications for alerts
+- Data export (CSV/JSON)
+- Feedback loop for ML recommendations
+- CI/CD and test coverage improvements
 
 ---
 
