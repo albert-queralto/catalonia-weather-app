@@ -71,3 +71,23 @@ def deactivate_inactive_users(days: int = 90):
     for user in inactive_users:
         user.is_active = False
     db.commit()
+    
+@celery_app.task
+def delete_unverified_users(days: int = 1):
+    """
+    Celery task to delete users who have not verified their email within a specified number of days.
+
+    Args:
+        days (int, optional): Number of days since registration before deletion. Defaults to 1.
+
+    This task deletes all users whose 'is_verified' is False and whose 'created_at' is older than the threshold date.
+    """
+    db = next(get_session())
+    threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    unverified_users = db.query(User).filter(
+        User.is_verified == False,
+        User.created_at < threshold
+    ).all()
+    for user in unverified_users:
+        db.delete(user)
+    db.commit()
