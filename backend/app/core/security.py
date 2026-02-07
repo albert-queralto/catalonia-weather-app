@@ -6,6 +6,8 @@ from passlib.context import CryptContext
 
 from .config import settings
 
+EMAIL_SECRET_KEY = settings.email_secret_key
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
@@ -28,3 +30,15 @@ def decode_access_token(token: str) -> str:
         return str(sub)
     except (JWTError, ValueError) as e:
         raise ValueError("Invalid token") from e
+
+def generate_email_token(user_id: int, expires_minutes: int = 60):
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    payload = {"sub": str(user_id), "exp": expire}
+    return jwt.encode(payload, EMAIL_SECRET_KEY, algorithm="HS256")
+
+def decode_email_token(token: str):
+    try:
+        payload = jwt.decode(token, EMAIL_SECRET_KEY, algorithms=["HS256"])
+        return payload["sub"]
+    except Exception as e:
+        return None

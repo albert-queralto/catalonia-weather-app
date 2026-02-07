@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     jwt_access_token_expire_minutes: int = Field(default=60 * 24, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
 
+    email_secret_key: str = Field(default="supersecretemailkey", alias="EMAIL_SECRET_KEY")
+    email_username: str = Field(default="", alias="EMAIL_USERNAME")
+    email_password: str = Field(default="", alias="EMAIL_PASSWORD")
 
     @property
     def cors_origin_list(self) -> List[str]:

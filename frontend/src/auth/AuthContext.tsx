@@ -5,6 +5,7 @@ type User = {
   email: string;
   role: string;
   is_active: boolean;
+  is_verified: boolean;
 };
 
 type AuthState = {
