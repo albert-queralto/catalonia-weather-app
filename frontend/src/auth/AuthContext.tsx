@@ -32,11 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         return;
       }
-      console.log("Sending token in Authorization header:", token);
       const res = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log("Response status for /auth/me:", res.status);
       if (res.ok) {
         setUser(await res.json());
       } else {

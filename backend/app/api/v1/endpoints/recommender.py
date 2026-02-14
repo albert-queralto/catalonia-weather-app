@@ -31,14 +31,14 @@ def log_event(ev: EventIn, db: Session = Depends(get_session)):
           request_id, position,
           user_lat, user_lon,
           weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day,
-          cloud_cover, precipitation
+          cloud_cover, precipitation, rating
         )
         VALUES (
           :id, :u, :a, :t, COALESCE(:ts, now()),
           :rid, :pos,
           :lat, :lon,
           :temp, :pp, :wind, :day,
-          :cloud, :precip
+          :cloud, :precip, :rating
         )
         """),
         {
@@ -57,6 +57,7 @@ def log_event(ev: EventIn, db: Session = Depends(get_session)):
             "day": weather["weather_is_day"],
             "cloud": weather["cloud_cover"],
             "precip": weather["precipitation"],
+            "rating": ev.rating,
         }
     )
     db.commit()
@@ -96,13 +97,13 @@ async def get_recommendations(
             id, user_id, activity_id, event_type, ts,
             request_id, position,
             user_lat, user_lon,
-            weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day
+            weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day, rating
             )
             VALUES (
             :id, :u, :a, 'view', now(),
             :rid, :pos,
             :lat, :lon,
-            :t, :pp, :w, :day
+            :t, :pp, :w, :day, NULL
             )
             """),
             {
@@ -117,6 +118,7 @@ async def get_recommendations(
                 "pp": float(w.precip_prob),
                 "w": float(w.wind_kmh),
                 "day": float(w.is_day),
+                "rating": None,
             }
         )
 
@@ -132,39 +134,3 @@ async def get_recommendations(
 def reload_model(admin: User = Depends(require_role("admin"))):
     model.load()
     return {"ok": True, "model_loaded": model.model is not None}
-
-@router.post("/events")
-def log_event(ev: EventIn, db: Session = Depends(get_session)):
-    db.execute(
-        text("""
-        INSERT INTO events (
-          id, user_id, activity_id, event_type, ts,
-          request_id, position,
-          user_lat, user_lon,
-          weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day
-        )
-        VALUES (
-          :id, :u, :a, :t, COALESCE(:ts, now()),
-          :rid, :pos,
-          :lat, :lon,
-          :temp, :pp, :wind, :day
-        )
-        """),
-        {
-            "id": str(uuid.uuid4()),
-            "u": str(ev.user_id),
-            "a": str(ev.activity_id),
-            "t": ev.event_type,
-            "ts": ev.ts,
-            "rid": str(ev.request_id) if ev.request_id else None,
-            "pos": ev.position,
-            "lat": ev.user_lat,
-            "lon": ev.user_lon,
-            "temp": ev.weather_temp_c,
-            "pp": ev.weather_precip_prob,
-            "wind": ev.weather_wind_kmh,
-            "day": ev.weather_is_day,
-        }
-    )
-    db.commit()
-    return {"ok": True}
