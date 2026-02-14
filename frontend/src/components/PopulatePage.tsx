@@ -75,6 +75,9 @@ export default function PopulatePage() {
   const [recSaveRate, setRecSaveRate] = useState('0.08');
   const [recLogViewsClientSide, setRecLogViewsClientSide] = useState('no'); // "yes" | "no"
 
+  const [numActivities, setNumActivities] = useState('100');
+  const [clearActivities, setClearActivities] = useState(false);
+
   const authToken = getAuthToken();
 
   const handlePopulateStations = async () => {
@@ -249,6 +252,48 @@ export default function PopulatePage() {
     setLoading('');
   };
 
+  const handlePopulateActivities = async () => {
+    setLoading('activities');
+    setMessage('');
+    setError('');
+    
+    try {
+      const count = parseInt(numActivities);
+      if (!count || count < 1 || count > 1000) {
+        throw new Error('Please enter a valid number between 1 and 1000');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/activities/populate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          count: count,
+          clear_existing: clearActivities
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to populate activities');
+      }
+      
+      const result = await response.json();
+      
+      let msg = `✅ ${result.message}\n\nBreakdown by category:\n`;
+      for (const [cat, count] of Object.entries(result.breakdown)) {
+        msg += `  ${cat}: ${count}\n`;
+      }
+      
+      setMessage(msg);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    
+    setLoading('');
+  };
+
   return (
     <Box sx={{ maxWidth: 700, mx: 'auto', mt: 4, p: 3, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 2 }}>
       <Typography variant="h5" gutterBottom>
@@ -292,6 +337,50 @@ export default function PopulatePage() {
             </Button>
           </Box>
         </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Typography variant="h6">Activities</Typography>
+        <Typography variant="body2" sx={{ opacity: 0.8, mb: 2 }}>
+          Generate synthetic activities with realistic attributes, locations (near Barcelona), and categories.
+          Activities will have varied price levels, difficulty, indoor/outdoor settings, and tags.
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap', mb: 2 }}>
+          <TextField
+            label="Number of Activities"
+            type="number"
+            value={numActivities}
+            onChange={(e) => setNumActivities(e.target.value)}
+            size="small"
+            sx={{ width: 200 }}
+            inputProps={{ min: 1, max: 1000 }}
+            helperText="1-1000 activities"
+          />
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 1 }}>
+            <input
+              type="checkbox"
+              id="clearActivities"
+              checked={clearActivities}
+              onChange={(e) => setClearActivities(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <label htmlFor="clearActivities" style={{ cursor: 'pointer' }}>
+              Clear existing data first
+            </label>
+            <InfoTip text="⚠️ Warning: This will delete ALL existing activities and events from the database!" />
+          </Box>
+        </Box>
+
+        <Button 
+          variant="contained" 
+          onClick={handlePopulateActivities} 
+          disabled={!!loading}
+          color={clearActivities ? "warning" : "primary"}
+        >
+          {loading === 'activities' ? 'Populating...' : 'Populate Activities'}
+        </Button>
 
         <Divider sx={{ my: 2 }} />
 
@@ -421,7 +510,7 @@ export default function PopulatePage() {
           {loading === 'recommender-populate' ? 'Populating...' : 'Populate Recommender Interactions'}
         </Button>
 
-        {message && <Alert severity="success">{message}</Alert>}
+        {message && <Alert severity="success" sx={{ whiteSpace: 'pre-line' }}>{message}</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
       </Stack>
     </Box>

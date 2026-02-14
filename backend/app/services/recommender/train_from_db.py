@@ -306,10 +306,45 @@ def main():
     
     y = df.apply(create_composite_label, axis=1)
 
-    # 7) Train/validation/test split
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y, test_size=0.3, random_state=42, stratify=y
-    )
+    # Print label distribution for debugging
+    print(f"\n{'='*60}")
+    print(f"Label Distribution:")
+    print(f"  Total samples:     {len(y)}")
+    print(f"  Positive (label=1): {y.sum()} ({100*y.mean():.2f}%)")
+    print(f"  Negative (label=0): {(1-y).sum()} ({100*(1-y.mean()):.2f}%)")
+    print(f"  Has ratings:       {df['rating'].notna().sum()}")
+    print(f"  Has implicit:      {df['label'].sum()}")
+    print(f"{'='*60}\n")
+
+    # Safety check: Ensure we have enough positive samples
+    if y.sum() < 10:
+        raise SystemExit(
+            f"Not enough positive samples to train: {y.sum()} positive labels. "
+            f"Need at least 10. Consider:\n"
+            f"  1. Reducing LOOKBACK_DAYS\n"
+            f"  2. Generating more user interactions\n"
+            f"  3. Checking if events are being logged correctly"
+        )
+
+    # Check if we have variance in features
+    if X.std().min() == 0:
+        zero_var_features = X.columns[X.std() == 0].tolist()
+        print(f"⚠️  Warning: Zero-variance features detected: {zero_var_features}")
+        print(f"   These features will not help the model.\n")
+
+    # 7) Train/test split with safety for small datasets
+    try:
+        X_train, X_temp, y_train, y_temp = train_test_split(
+            X, y, test_size=0.25, random_state=42, stratify=y
+        )
+    except ValueError as e:
+        # If stratification fails (too few samples in a class), don't stratify
+        print(f"⚠️  Cannot stratify split: {e}")
+        print("   Using random split instead.\n")
+        X_train, X_temp, y_train, y_temp = train_test_split(
+            X, y, test_size=0.25, random_state=42, stratify=None
+        )
+        
     X_val, X_test, y_val, y_test = train_test_split(
         X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp
     )
@@ -321,18 +356,45 @@ def main():
         raise SystemExit("No positive events in training data. Cannot train model.")
     scale_pos_weight = (neg / max(pos, 1))
 
+    # Adjust hyperparameters based on dataset size
+    n_samples = len(X_train)
+    if n_samples < 500:
+        # Very small dataset - use shallow trees
+        n_estimators = 100
+        num_leaves = 7
+        min_child_samples = 5
+    elif n_samples < 2000:
+        # Small dataset
+        n_estimators = 300
+        num_leaves = 15
+        min_child_samples = 10
+    else:
+        # Larger dataset
+        n_estimators = 800
+        num_leaves = 31
+        min_child_samples = 20
+
+    print(f"Model Configuration:")
+    print(f"  n_estimators:      {n_estimators}")
+    print(f"  num_leaves:        {num_leaves}")
+    print(f"  min_child_samples: {min_child_samples}")
+    print(f"  scale_pos_weight:  {scale_pos_weight:.2f}")
+    print()
+
     model = lgb.LGBMClassifier(
-        n_estimators=1000,
-        learning_rate=0.02,
-        num_leaves=31,
+        n_estimators=n_estimators,
+        learning_rate=0.05,
+        num_leaves=num_leaves,
         subsample=0.8,
         colsample_bytree=0.8,
-        min_child_samples=20,
+        min_child_samples=min_child_samples,
         reg_alpha=0.1,
         reg_lambda=0.1,
         random_state=42,
         scale_pos_weight=scale_pos_weight,
         class_weight='balanced',
+        min_split_gain=0.0,
+        verbose=-1
     )
     
     model.fit(
@@ -392,7 +454,7 @@ def main():
     print(f"  Test rows:  {len(X_test)}")
     print(f"  Pos rate:   {y.mean():.4f}")
     print("=" * 60)
-    
+
     payload = {"model": model, "feature_order": feature_cols}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     joblib.dump(payload, out_path)
