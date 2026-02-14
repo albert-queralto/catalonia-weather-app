@@ -231,10 +231,10 @@ export default function MLModelTrainer() {
           </Typography>
 
           <Box sx={{ bgcolor: "background.default", borderRadius: 1, p: 1.5, fontFamily: "monospace", fontSize: 13 }}>
-            <div>cd ml</div>
+            <div>cd app/services/recommender</div>
             <div>python -m venv .venv && source .venv/bin/activate</div>
             <div>pip install -r requirements.txt</div>
-            <div>export PG_URL="postgresql+psycopg2://weather:weather@postgres:5432/weather"</div>
+            <div>export DATABASE_URL="postgresql+psycopg2://weather:weather@postgres:5432/weather"</div>
             <div>export MODEL_OUT="../models/recommender.joblib"</div>
             <div>python train_from_db.py</div>
           </Box>

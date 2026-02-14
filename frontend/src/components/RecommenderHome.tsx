@@ -140,7 +140,11 @@ export default function RecommenderHome() {
     });
   }
 
-  async function sendEvent(activity: ActivityOut, event_type: "click" | "save" | "dismiss") {
+  async function sendEvent(
+    activity: ActivityOut,
+    event_type: "click" | "save" | "dismiss" | "rate",
+    rating?: number
+  ) {
     if (!token || !user) return;
     try {
       await postEvent(token, {
@@ -149,12 +153,34 @@ export default function RecommenderHome() {
         event_type,
         request_id: activity.request_id ?? null,
         user_lat: lat,
-        user_lon: lon
+        user_lon: lon,
+        rating,
       });
-      setStatus(`Event sent: ${event_type} (${activity.name})`);
+      setStatus(
+        event_type === "rate"
+          ? `Rated ${activity.name} with ${rating} stars`
+          : `Event sent: ${event_type} (${activity.name})`
+      );
     } catch (e: any) {
       setStatus(e?.message ?? "Failed to send event");
     }
+  }
+
+  function RatingButtons({ activity }: { activity: ActivityOut }) {
+    return (
+      <div>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Button
+            key={star}
+            size="small"
+            onClick={() => sendEvent(activity, "rate", star)}
+            style={{ minWidth: 0, padding: "2px 6px" }}
+          >
+            {star}★
+          </Button>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -249,6 +275,7 @@ export default function RecommenderHome() {
                 >
                   Dismiss
                 </Button>
+                <RatingButtons activity={r} />
               </div>
             </div>
           ))}

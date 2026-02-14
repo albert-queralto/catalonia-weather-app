@@ -16,7 +16,7 @@ if MAIN_PATH not in sys.path:
 print(f"Added {MAIN_PATH} to sys.path for imports")
 from app.services.activity.schemas import GeoJSONPoint
 
-EventType = Literal["view", "click", "save", "complete", "dismiss"]
+EventType = Literal["view", "click", "save", "complete", "dismiss", "rate"]
 
 
 class EventIn(BaseModel):
@@ -39,6 +39,8 @@ class EventIn(BaseModel):
     weather_precip_prob: Optional[float] = None
     weather_wind_kmh: Optional[float] = None
     weather_is_day: Optional[float] = None
+    
+    rating: Optional[int] = None  # For explicit user ratings (e.g. 1-5 stars)
 
 
 class ActivityOut(BaseModel):
@@ -66,4 +68,4 @@ class ActivityOut(BaseModel):
     validated: bool
 
     request_id: Optional[UUID] = None
-
+    rating: Optional[int] = None  # For explicit user ratings (e.g. 1-5 stars)

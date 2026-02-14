@@ -50,3 +50,5 @@ class Event(Base):
     weather_precip_prob = Column(Float, nullable=True)
     weather_wind_kmh = Column(Float, nullable=True)
     weather_is_day = Column(Float, nullable=True)
+    
+    rating = Column(Integer, nullable=True)  # For explicit user ratings (e.g. 1-5 stars)
