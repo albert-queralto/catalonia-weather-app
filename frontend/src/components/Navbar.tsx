@@ -136,6 +136,7 @@ export default function Navbar() {
                 navLink("/populate", "Populate data", "populate-data"),
                 navLink("/ml-model-trainer", "ML Trainer", "ml-model-trainer"),
                 navLink("/user-management", "User management", "user-management"),
+                navLink("/analytics", "Analytics dashboard", "analytics-dashboard"),
               ]
             )
           )}
