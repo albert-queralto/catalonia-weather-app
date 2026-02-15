@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from geoalchemy2.shape import from_shape
 from shapely.geometry import shape
+import random
+from typing import Optional
+from pydantic import BaseModel
 
 from app.db.session import get_session
 from app.db.models.activity_suggestion import ActivitySuggestion
@@ -118,18 +121,10 @@ def list_activity_categories(db: Session = Depends(get_session)):
     categories = db.query(ActivitySuggestion.category).distinct().all()
     return [c[0] for c in categories if c[0] is not None]
 
-# Add these imports at the top if not already present
-import random
-from datetime import timedelta
-from typing import Optional
-from pydantic import BaseModel
-
-# Add this schema class after the imports
 class PopulateActivitiesRequest(BaseModel):
     count: int = 100
     clear_existing: bool = False
 
-# Add this endpoint at the end of the file
 @router.post("/populate")
 def populate_activities(
     request: PopulateActivitiesRequest, 
