@@ -22,6 +22,7 @@ import UserManagementPage from './components/UserManagementPage';
 import VerifyEmailPage from "./components/EmailVerification";
 import RequestPasswordResetPage from "./components/PasswordResetRequest";
 import ResetPasswordPage from "./components/PasswordReset";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
 
 
 function AppRoutes() {
@@ -74,6 +75,11 @@ function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/request-password-reset" element={<RequestPasswordResetPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/analytics" element={
+          <ProtectedRoute requireRole="admin">
+            <AnalyticsDashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
     </>
   );

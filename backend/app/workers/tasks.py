@@ -91,3 +91,29 @@ def delete_unverified_users(days: int = 1):
     for user in unverified_users:
         db.delete(user)
     db.commit()
+
+@celery_app.task
+def retrain_recommender_model():
+    """Retrain model weekly with fresh data"""
+    import subprocess
+    import os
+    
+    result = subprocess.run(
+        ['python', 'app/services/recommender/train_from_db.py'],
+        env={
+            'DATABASE_URL': os.environ['DATABASE_URL'],
+            'MODEL_OUT': 'models/recommender_new.joblib',
+            'LOOKBACK_DAYS': '60',
+        },
+        capture_output=True,
+        text=True
+    )
+    
+    if result.returncode == 0:
+        # Atomic swap
+        os.rename('models/recommender_new.joblib', 'models/recommender.joblib')
+        # Reload in API
+        requests.post('http://localhost:8000/api/v1/model/reload')
+        return {"status": "success", "output": result.stdout}
+    else:
+        return {"status": "failed", "error": result.stderr}
