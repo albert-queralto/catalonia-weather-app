@@ -137,15 +137,21 @@ export type ActivityOut = {
   score: number;
   reason: string;
   request_id?: string | null;
+  position?: number | null;
+  weather_temp_c?: number | null;
+  weather_precip_prob?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_is_day?: number | null;
+
   location: GeoJSONPoint;
   created_at?: string;
   validated: boolean;
+  rating?: number | null;
 };
 
 export type EventIn = {
-  user_id: string;
   activity_id: string;
-  event_type: "view" | "click" | "save" | "complete" | "dismiss";
+  event_type: "view" | "click" | "save" | "complete" | "dismiss" | "rate";
   ts?: string;
 
   request_id?: string | null;
@@ -158,4 +164,7 @@ export type EventIn = {
   weather_precip_prob?: number | null;
   weather_wind_kmh?: number | null;
   weather_is_day?: number | null;
+  rating?: number | null;
 };
+
+

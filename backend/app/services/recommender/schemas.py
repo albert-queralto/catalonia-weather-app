@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Literal
 from uuid import UUID
 from datetime import datetime
@@ -13,7 +13,7 @@ MAIN_PATH = str(Path(__file__).resolve().parents[3])
 if MAIN_PATH not in sys.path:
     sys.path.append(MAIN_PATH)
     
-print(f"Added {MAIN_PATH} to sys.path for imports")
+
 from app.services.activity.schemas import GeoJSONPoint
 
 EventType = Literal["view", "click", "save", "complete", "dismiss", "rate"]
@@ -24,7 +24,7 @@ class EventIn(BaseModel):
     Client-logged event. For training quality, you should log impressions (view)
     server-side in /recommendations, but clients can send click/save/etc here.
     """
-    user_id: UUID
+    model_config = ConfigDict(extra="forbid")
     activity_id: UUID
     event_type: EventType
     ts: Optional[datetime] = None
@@ -68,4 +68,9 @@ class ActivityOut(BaseModel):
     validated: bool
 
     request_id: Optional[UUID] = None
+    position: Optional[int] = None
+    weather_temp_c: Optional[float] = None
+    weather_precip_prob: Optional[float] = None
+    weather_wind_kmh: Optional[float] = None
+    weather_is_day: Optional[float] = None
     rating: Optional[int] = None  # For explicit user ratings (e.g. 1-5 stars)

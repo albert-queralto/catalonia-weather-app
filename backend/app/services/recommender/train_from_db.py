@@ -7,6 +7,16 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, ndcg_score, average_precision_score
 import lightgbm as lgb
 
+from app.services.recommender.feature_contract import (
+    FEATURE_COLUMNS,
+    assert_feature_columns_present,
+)
+
+from app.services.recommender.features import (
+    compute_tag_overlap,
+    compute_weather_penalties,
+)
+
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     # fast-ish vectorizable implementation for pandas
     R = 6371.0
@@ -64,7 +74,7 @@ def main():
           event_type,
           ts
         FROM events
-        WHERE event_type IN ('click','save','complete', 'rate')
+        WHERE event_type IN ('click','save','complete','rate')
           AND ts >= now() - interval '{lookback_days + label_window_days} days'
         """,
         engine,
@@ -97,7 +107,7 @@ def main():
             COUNT(*) as total_events,
             COUNT(DISTINCT activity_id) as unique_activities,
             AVG(CASE WHEN rating IS NOT NULL THEN rating END) as user_avg_rating,
-            COUNT(CASE WHEN event_type IN ('save','complete') THEN 1 END) as user_engagement_count
+            COUNT(CASE WHEN event_type IN ('click','save','complete') THEN 1 END) as user_engagement_count
         FROM events
         WHERE ts >= now() - interval '{lookback_days + label_window_days} days'
         GROUP BY user_id
@@ -110,9 +120,9 @@ def main():
         f"""
         SELECT 
             activity_id::text,
-            COUNT(*) as activity_view_count,
+            COUNT(CASE WHEN event_type = 'view' THEN 1 END) as activity_view_count,
             AVG(CASE WHEN rating IS NOT NULL THEN rating END) as activity_avg_rating,
-            COUNT(CASE WHEN event_type IN ('save','complete') THEN 1 END) as activity_engagement_count
+            COUNT(CASE WHEN event_type IN ('click','save','complete') THEN 1 END) as activity_engagement_count
         FROM events
         WHERE ts >= now() - interval '{lookback_days + label_window_days} days'
         GROUP BY activity_id
@@ -192,6 +202,17 @@ def main():
     df['user_exploration_rate'] = df['unique_activities'] / (df['total_events'] + 1)
 
     # 5) Load user preference weights by category
+    df['total_events'] = df['total_events'].fillna(0)
+    df['unique_activities'] = df['unique_activities'].fillna(0)
+    df['user_avg_rating'] = df['user_avg_rating'].fillna(2.5)  # Neutral default
+    df['user_engagement_count'] = df['user_engagement_count'].fillna(0)
+    df['activity_view_count'] = df['activity_view_count'].fillna(0)
+    df['activity_avg_rating'] = df['activity_avg_rating'].fillna(2.5)
+    df['activity_engagement_count'] = df['activity_engagement_count'].fillna(0)
+    
+    df['activity_engagement_rate'] = df['activity_engagement_count'] / (df['activity_view_count'] + 1)
+    df['user_exploration_rate'] = df['unique_activities'] / (df['total_events'] + 1)
+    
     prefs = pd.read_sql(
         """
         SELECT user_id::text, category, weight
@@ -202,6 +223,24 @@ def main():
     user_cat = prefs.pivot_table(index="user_id", columns="category", values="weight", fill_value=0.0)
 
     # 6) Feature engineering
+    user_tag_events = pd.read_sql(
+        f"""
+        SELECT
+            e.user_id::text AS user_id,
+            unnest(a.tags) AS tag,
+            COUNT(*) AS cnt
+        FROM events e
+        JOIN activities a ON e.activity_id = a.id
+        WHERE e.event_type IN ('save','complete')
+          AND e.ts >= now() - interval '{lookback_days + label_window_days} days'
+        GROUP BY 1, 2
+        """,
+        engine,
+    )
+    user_tag_pref_map = {}
+    for row in user_tag_events.itertuples(index=False):
+        user_tag_pref_map.setdefault(row.user_id, {})[row.tag] = float(row.cnt)
+    
     df["distance_km"] = haversine_km(df["user_lat"], df["user_lon"], df["lat"], df["lon"])
 
     def get_cat_weight(row) -> float:
@@ -215,7 +254,13 @@ def main():
 
     # Minimal tag features
     # Here: tag_overlap based on whether any tag string exists
-    df["tag_overlap"] = df["tags"].apply(lambda x: float(len(x) if isinstance(x, list) else 0))
+    df["tag_overlap"] = df.apply(
+        lambda row: compute_tag_overlap(
+            row['tags'] if isinstance(row['tags'], list) else [],
+            user_tag_pref_map.get(row['user_id'], {}),
+        ),
+        axis=1,
+    )
 
     df["indoor_f"] = df["indoor"].astype(float)
     df["covered_f"] = df["covered"].astype(float)
@@ -224,79 +269,37 @@ def main():
     df["duration_minutes_f"] = df["duration_minutes"].astype(float)
 
     # Weather-derived penalties for outdoor activities
-    outdoor = (1.0 - df["indoor_f"])
-    df["precip_penalty"] = outdoor * (df["weather_precip_prob"] / 100.0)
-    df["wind_penalty"] = outdoor * (df["weather_wind_kmh"] / 50.0)
-    df["cold_penalty"] = outdoor * np.maximum(0.0, (10.0 - df["weather_temp_c"]) / 10.0)
-    df["heat_penalty"] = outdoor * np.maximum(0.0, (df["weather_temp_c"] - 30.0) / 10.0)
+    penalties = df.apply(
+        lambda row: compute_weather_penalties(
+            indoor=row['indoor'],
+            covered=row['covered'],
+            weather_temp_c=row['weather_temp_c'],
+            weather_precip_prob=row['weather_precip_prob'],
+            weather_wind_kmh=row['weather_wind_kmh'],
+            weather_is_day=row['weather_is_day'],
+        ),
+        axis=1,
+    )
+    df['precip_penalty'] = penalties.apply(lambda x: x['precip_penalty'])
+    df['wind_penalty'] = penalties.apply(lambda x: x['wind_penalty'])
+    df['cold_penalty'] = penalties.apply(lambda x: x['cold_penalty'])
+    df['heat_penalty'] = penalties.apply(lambda x: x['heat_penalty'])
     
     df['hour_of_day'] = df['impression_ts'].dt.hour
     df['day_of_week'] = df['impression_ts'].dt.dayofweek
-    df['is_weekend'] = (df['day_of_week'] >= 5).astype(float)
-
+    df['is_weekend'] = df['day_of_week'].isin([5,6]).astype(float)
+    
     df['temp_distance_interaction'] = df['weather_temp_c'] * df['distance_km']
     df['price_distance_interaction'] = df['price_level_f'] * df['distance_km']
-
     df['cat_weight_distance'] = df['cat_weight'] * df['distance_km']
     df['indoor_precip'] = df['indoor_f'] * df['weather_precip_prob']
 
-    feature_cols = [
-        # Core features
-        "distance_km",
-        "cat_weight",
-        "tag_overlap",
-        
-        # Activity attributes
-        "indoor_f",
-        "covered_f",
-        "price_level_f",
-        "difficulty_f",
-        "duration_minutes_f",
-        
-        # Weather context
-        "weather_temp_c",
-        "weather_precip_prob",
-        "weather_wind_kmh",
-        "weather_is_day",
-        
-        # Weather penalties
-        "precip_penalty",
-        "wind_penalty",
-        "cold_penalty",
-        "heat_penalty",
-        
-        # Positional
-        "position",
-        
-        # Temporal features
-        "hour_of_day",
-        "day_of_week",
-        "is_weekend",
-        
-        # Interaction features
-        "temp_distance_interaction",
-        "price_distance_interaction",
-        "cat_weight_distance",
-        "indoor_precip",
-        
-        # User history features
-        "total_events",
-        "unique_activities",
-        "user_avg_rating",
-        "user_engagement_count",
-        "user_exploration_rate",
-        
-        # Activity popularity features
-        "activity_view_count",
-        "activity_avg_rating",
-        "activity_engagement_count",
-        "activity_engagement_rate",
-    ]
-
     # Ensure no nulls
-    X = df[feature_cols].fillna(0.0)
+    X = df[FEATURE_COLUMNS].fillna(0.0)
     
     # Combine explicit ratings with implicit signals
+    assert_feature_columns_present(X.columns)
+    
     def create_composite_label(row):
         # Explicit rating takes precedence (strongest signal)
         if pd.notna(row['rating']):
@@ -350,6 +353,17 @@ def main():
     )
 
     # Handle imbalance
+    try:
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp
+        )
+    except ValueError as e:
+        print(f"⚠️  Cannot stratify validation/test split: {e}")
+        print("   Using random split instead.\n")
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_temp, y_temp, test_size=0.5, random_state=42, stratify=None
+        )
+    
     pos = y_train.sum()
     neg = len(y_train) - pos
     if pos == 0:
@@ -418,9 +432,7 @@ def main():
         df_subset['true_label'] = y_data.values
         
         ndcg_scores = []
-        for req_id in df_subset['request_id'].unique():
-            if pd.isna(req_id):
-                continue
+        for req_id in df_subset['request_id'].dropna().unique():
             subset = df_subset[df_subset['request_id'] == req_id]
             if len(subset) > 1 and subset['true_label'].sum() > 0:
                 try:
@@ -430,7 +442,7 @@ def main():
                         k=10
                     )
                     ndcg_scores.append(ndcg)
-                except:
+                except Exception:
                     pass
         
         avg_ndcg = np.mean(ndcg_scores) if ndcg_scores else 0.0
@@ -455,7 +467,7 @@ def main():
     print(f"  Pos rate:   {y.mean():.4f}")
     print("=" * 60)
 
-    payload = {"model": model, "feature_order": feature_cols}
+    payload = {"model": model, "feature_order": FEATURE_COLUMNS}
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     joblib.dump(payload, out_path)
     print(f"Saved model: {out_path}")

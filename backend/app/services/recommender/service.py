@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 import joblib
 import numpy as np
 from uuid import UUID
 
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 
 from app.services.recommender.features import build_features, reason_text, ActivityRow
+from app.services.recommender.feature_contract import ensure_feature_contract, FEATURE_COLUMNS
+
 
 class MLRecommender:
     """
@@ -31,10 +32,14 @@ class MLRecommender:
             payload = joblib.load(self.model_path)
             self.model = payload["model"]
             self.feature_order = list(payload["feature_order"])
+            
+            if self.feature_order != FEATURE_COLUMNS:
+                raise ValueError(f"Model feature order {self.feature_order} does not match expected {FEATURE_COLUMNS}")
+                
         except FileNotFoundError:
             self.model = None
             self.feature_order = []
-        except Exception as e:
+        except Exception:
             # Fail closed: keep fallback scoring
             self.model = None
             self.feature_order = []
@@ -86,6 +91,62 @@ def get_user_preferences(db: Session, user_id: UUID) -> Tuple[Dict[str, float], 
     tag = {r[0]: float(r[1]) for r in rows2}
     return cat, tag
 
+def get_user_stats(db: Session, user_id: UUID) -> Dict[str, float]:
+    q = text("""
+      SELECT
+        COUNT(*) AS total_events,
+        COUNT(DISTINCT activity_id) AS unique_activities,
+        AVG(rating) AS user_avg_rating,
+        SUM(CASE WHEN event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS user_engagement_count
+      FROM events
+      WHERE user_id = :uid
+    """)
+    r = db.execute(q, {"uid": str(user_id)}).fetchone()
+    total_events = float(r[0] or 0)
+    unique_activities = float(r[1] or 0)
+    user_avg_rating = float(r[2] or 2.5)
+    user_engagement_count = float(r[3] or 0)
+    user_exploration_rate = (unique_activities / total_events) if total_events > 0 else 0.0
+
+    return {
+        "total_events": total_events,
+        "unique_activities": unique_activities,
+        "user_avg_rating": user_avg_rating,
+        "user_engagement_count": user_engagement_count,
+        "user_exploration_rate": user_exploration_rate,
+    }
+    
+def get_activity_stats_batch(db: Session, activity_ids: List[UUID]) -> Dict[str, Dict[str, float]]:
+    if not activity_ids:
+        return {}
+    
+    q = text("""
+      SELECT
+        activity_id::text AS activity_id,
+        SUM(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) AS activity_view_count,
+        AVG(rating) AS activity_avg_rating,
+        SUM(CASE WHEN event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS activity_engagement_count
+      FROM events
+        WHERE activity_id IN :activity_ids
+        GROUP BY activity_id
+    """).bindparams(bindparam("activity_ids", expanding=True))
+    
+    rows = db.execute(q, {"activity_ids": activity_ids}).fetchall()
+    out: Dict[str, Dict[str, float]] = {}
+    for r in rows:
+        activity_id = r[0]
+        activity_view_count = float(r[1] or 0)
+        activity_avg_rating = float(r[2] or 2.5)
+        activity_engagement_count = float(r[3] or 0)
+        activity_engagement_rate = (activity_engagement_count / activity_view_count) if activity_view_count > 0 else 0.0
+        out[activity_id] = {
+            "activity_view_count": activity_view_count,
+            "activity_avg_rating": activity_avg_rating,
+            "activity_engagement_count": activity_engagement_count,
+            "activity_engagement_rate": activity_engagement_rate,
+        }
+
+    return out
 
 def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> List[ActivityRow]:
     q = text("""
@@ -97,6 +158,7 @@ def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> L
         validated, created_at
       FROM activities
       WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lon,:lat),4326)::geography, :meters)
+      AND validated = true
       LIMIT 500
     """)
     meters = radius_km * 1000.0
@@ -138,6 +200,12 @@ def recommend(
     cat_pref, tag_pref = get_user_preferences(db, user_id)
     candidates = fetch_candidates(db, lat, lon, radius_km)
 
+    if not candidates:
+        return []
+    
+    user_stats = get_user_stats(db, user_id)
+    activity_stats_map = get_activity_stats_batch(db, [UUID(a.id) for a in candidates])
+
     scored = []
     for a in candidates:
         feats = build_features(
@@ -150,14 +218,17 @@ def recommend(
             weather_precip_prob=weather_precip_prob,
             weather_wind_kmh=weather_wind_kmh,
             weather_is_day=weather_is_day,
+            user_stats=user_stats,
+            activity_stats=activity_stats_map.get(UUID(a.id), {}),
         )
+        feats = ensure_feature_contract(feats)
         s = model.score(feats)
         scored.append((s, feats["distance_km"], a, feats))
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
     results: List[dict] = []
-    for s, dist, a, feats in scored[:limit]:
+    for rank, (s, dist, a, feats) in enumerate(scored[:limit], start=1):
         results.append({
             "id": a.id,  # string UUID is fine; Pydantic will parse to UUID
             "name": a.name,
@@ -177,5 +248,10 @@ def recommend(
             "created_at": a.created_at.isoformat(),
             "score": float(s),
             "reason": reason_text(a, weather_precip_prob, weather_temp_c),
+            "position": rank,
+            "weather_temp_c": feats.get("weather_temp_c", 0.0),
+            "weather_precip_prob": feats.get("weather_precip_prob", 0.0),
+            "weather_wind_kmh": feats.get("weather_wind_kmh", 0.0),
+            "weather_is_day": feats.get("weather_is_day", 1.0),
         })
     return results

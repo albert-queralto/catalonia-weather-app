@@ -78,7 +78,7 @@ export default function RecommenderHome() {
   }
 
   async function fetchRecs() {
-    if (!token || !user) return;
+    if (!token) return;
     setBusy(true);
     setStatus("Fetching recommendations…");
     try {
@@ -142,18 +142,22 @@ export default function RecommenderHome() {
 
   async function sendEvent(
     activity: ActivityOut,
-    event_type: "click" | "save" | "dismiss" | "rate",
+    event_type: "click" | "save" | "complete" | "dismiss" | "rate",
     rating?: number
   ) {
     if (!token || !user) return;
     try {
       await postEvent(token, {
-        user_id: user.id,
         activity_id: activity.id,
         event_type,
         request_id: activity.request_id ?? null,
+        position: activity.position ?? null,
         user_lat: lat,
         user_lon: lon,
+        weather_temp_c: activity.weather_temp_c ?? null,
+        weather_precip_prob: activity.weather_precip_prob ?? null,
+        weather_wind_kmh: activity.weather_wind_kmh ?? null,
+        weather_is_day: activity.weather_is_day ?? null,
         rating,
       });
       setStatus(
@@ -244,6 +248,9 @@ export default function RecommenderHome() {
             <div key={r.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 12, marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <b>{r.name}</b>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>
+                  #{r.position ?? "-"}
+                </span>
               </div>
               <div style={{ marginTop: 6 }}>
                 {r.category} • {r.indoor ? "indoor" : "outdoor"} • {r.distance_km.toFixed(2)} km
@@ -251,7 +258,7 @@ export default function RecommenderHome() {
               <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
                 {r.reason}
               </div>
-              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+              <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -266,6 +273,14 @@ export default function RecommenderHome() {
                   onClick={() => sendEvent(r, "save")}
                 >
                   Save
+                </Button>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  size="small"
+                  onClick={() => sendEvent(r, "complete")}
+                >
+                  Complete
                 </Button>
                 <Button
                   variant="outlined"

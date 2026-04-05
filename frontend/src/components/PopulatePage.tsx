@@ -198,7 +198,6 @@ export default function PopulatePage() {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                user_id: userId,
                 activity_id: r.id,
                 event_type: 'view',
                 request_id: requestId,
@@ -226,7 +225,6 @@ export default function PopulatePage() {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                user_id: userId,
                 activity_id: r.id,
                 event_type: eventType,
                 request_id: requestId,
