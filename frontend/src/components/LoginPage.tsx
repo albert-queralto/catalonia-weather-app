@@ -45,6 +45,9 @@ export default function LoginPage() {
       <div style={{ marginTop: 12 }}>
         No account? <Link to="/register">Register</Link>
       </div>
+      <div style={{ marginTop: 8 }}>
+        <Link to="/request-password-reset">Forgot password?</Link>
+      </div>
     </div>
   );
 }

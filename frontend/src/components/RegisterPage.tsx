@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const nav = useNavigate();
   const { login } = useAuth();
 
+  const [registered, setRegistered] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -40,14 +41,15 @@ export default function RegisterPage() {
         }
         throw new Error(message);
       }
-      await login(email, password);
-      nav("/");
+      setRegistered(true);
     } catch (e: any) {
       setErr(e?.message ?? "Register failed");
     } finally {
       setBusy(false);
     }
   }
+
+  if (registered) return <div style={{ padding: 16 }}>Registration successful! Check your email to verify your account before logging in.</div>;
 
   return (
     <div style={{ padding: 16, maxWidth: 420 }}>

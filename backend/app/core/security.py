@@ -31,14 +31,16 @@ def decode_access_token(token: str) -> str:
     except (JWTError, ValueError) as e:
         raise ValueError("Invalid token") from e
 
-def generate_email_token(user_id: int, expires_minutes: int = 60):
+def generate_email_token(user_id, expires_minutes: int = 60, token_type: str = "email_verification"):
     expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
-    payload = {"sub": str(user_id), "exp": expire}
+    payload = {"sub": str(user_id), "exp": expire, "type": token_type}
     return jwt.encode(payload, EMAIL_SECRET_KEY, algorithm="HS256")
 
-def decode_email_token(token: str):
+def decode_email_token(token: str, token_type: str = "email_verification"):
     try:
         payload = jwt.decode(token, EMAIL_SECRET_KEY, algorithms=["HS256"])
+        if payload.get("type") != token_type:
+            return None
         return payload["sub"]
-    except Exception as e:
+    except Exception:
         return None

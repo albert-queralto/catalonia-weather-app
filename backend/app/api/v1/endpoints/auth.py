@@ -44,7 +44,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_session)):
     db.commit()
     db.refresh(u)
     
-    token = generate_email_token(u.id)
+    token = generate_email_token(u.id, token_type="email_verification")
     u.verification_token = token
     db.commit()
     
