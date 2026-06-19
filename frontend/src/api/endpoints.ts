@@ -27,15 +27,33 @@ export async function me(token: string) {
 }
 
 /** Recs */
-export async function getRecommendations(token: string, lat: number, lon: number, radiusKm = 8, horizonHours = 4, limit = 20) {
+export async function getRecommendations(
+  token: string,
+  lat: number,
+  lon: number,
+  radiusKm = 8,
+  horizonHours = 4,
+  limit = 20,
+  planningHours = 48,
+  sensitiveToAirQuality = false
+) {
   const qs = new URLSearchParams({
     lat: String(lat),
     lon: String(lon),
     radius_km: String(radiusKm),
     horizon_hours: String(horizonHours),
-    limit: String(limit)
+    planning_hours: String(planningHours),
+    limit: String(limit),
+    sensitive_to_air_quality: String(sensitiveToAirQuality),
   });
-  return apiFetch<ActivityOut[]>(`/recommendations?${qs.toString()}`, { method: "GET", token });
+
+  return apiFetch<ActivityOut[]>(
+    `/recommendations?${qs.toString()}`,
+    {
+      method: "GET",
+      token,
+    }
+  );
 }
 
 /** Events */

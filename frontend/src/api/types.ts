@@ -136,6 +136,24 @@ export type ActivityOut = {
   distance_km: number;
   score: number;
   reason: string;
+  recommendation_label?: string | null;
+  recommendation_group?: string | null;
+
+  best_start?: string | null;
+  best_end?: string | null;
+
+  base_score?: number | null;
+
+  alert_severity?: number;
+  alert_meteors?: string[];
+
+  air_quality_score?: number | null;
+  air_quality_pm2_5?: number | null;
+  air_quality_pm10?: number | null;
+  air_quality_no2?: number | null;
+  air_quality_ozone?: number | null;
+  air_quality_uv_index?: number | null;
+  
   request_id?: string | null;
   position?: number | null;
   weather_temp_c?: number | null;

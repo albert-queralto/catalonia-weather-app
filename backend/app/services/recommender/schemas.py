@@ -63,6 +63,24 @@ class ActivityOut(BaseModel):
     score: float
     reason: str
 
+    recommendation_label: Optional[str] = None
+    recommendation_group: Optional[str] = None
+    
+    best_start: Optional[datetime] = None
+    best_end: Optional[datetime] = None
+    
+    base_score: Optional[float] = None
+    
+    alert_severity: int = 0
+    alert_meteors: List[str] = Field(default_factory=list)
+    
+    air_quality_score: Optional[float] = None
+    air_quality_pm2_5: Optional[float] = None
+    air_quality_pm10: Optional[float] = None
+    air_quality_no2: Optional[float] = None
+    air_quality_ozone: Optional[float] = None
+    air_quality_uv_index: Optional[float] = None
+
     location: GeoJSONPoint
     created_at: datetime
     validated: bool

@@ -70,7 +70,7 @@ class AirQualityService:
                 "nitrogen_dioxide", "sulphur_dioxide", "ozone", "uv_index",
             ],
         }
-        responses = air_quality_service.openmeteo.weather_api(url, params=params)
+        responses = self.openmeteo.weather_api(url, params=params)
         response = responses[0]
         hourly = response.Hourly()
         hourly_pm2_5 = hourly.Variables(0).ValuesAsNumpy()

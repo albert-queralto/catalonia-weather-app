@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { useAuth } from "../auth/AuthContext";
 import { getRecommendations, postEvent } from "../api/endpoints";
-import { TextField, Button } from '@mui/material';
+import { TextField, Button, Checkbox, FormControlLabel, Chip } from "@mui/material";
 import type { ActivityOut } from "../api/types";
 import 'leaflet/dist/leaflet.css';
 
@@ -16,6 +16,8 @@ export default function RecommenderHome() {
   const [busy, setBusy] = useState(false);
   const [horizonHours, setHorizonHours] = useState(4);
   const [limit, setLimit] = useState(20);
+  const [planningHours, setPlanningHours] = useState(48);
+  const [sensitiveToAirQuality, setSensitiveToAirQuality] = useState(false);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapObj = useRef<L.Map | null>(null);
@@ -23,6 +25,40 @@ export default function RecommenderHome() {
   const userMarkerRef = useRef<L.Marker | null>(null);
 
   const center = useMemo(() => [lat, lon] as [number, number], [lat, lon]);
+
+  const groupedRecs = useMemo(() => {
+  const groups: Record<string, ActivityOut[]> = {};
+
+  for (const rec of recs) {
+    const group = rec.recommendation_group || "Good options";
+    groups[group] = groups[group] || [];
+    groups[group].push(rec);
+  }
+
+  return groups;
+}, [recs]);
+
+function formatBestWindow(activity: ActivityOut) {
+  if (!activity.best_start) return null;
+
+  const start = new Date(activity.best_start);
+  const end = activity.best_end ? new Date(activity.best_end) : null;
+
+  const startText = start.toLocaleString([], {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const endText = end
+    ? end.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  return endText ? `${startText}–${endText}` : startText;
+}
 
   useEffect(() => {
     if (!mapRef.current || mapObj.current) return;
@@ -82,7 +118,16 @@ export default function RecommenderHome() {
     setBusy(true);
     setStatus("Fetching recommendations…");
     try {
-      const data = await getRecommendations(token, lat, lon, radiusKm, horizonHours, limit);
+      const data = await getRecommendations(
+        token,
+        lat,
+        lon,
+        radiusKm,
+        horizonHours,
+        limit,
+        planningHours,
+        sensitiveToAirQuality
+      );
       console.log("Received recommendations:", data);
       setRecs(data);
       setStatus(`Got ${data.length} recommendations.`);
@@ -134,7 +179,9 @@ export default function RecommenderHome() {
           icon: activityIcon
         })
           .addTo(mapObj.current)
-          .bindPopup(`<b>${activity.name}</b><br/>${activity.category}`);
+          .bindPopup(
+            `<b>${activity.name}</b><br/>${activity.category}<br/>${activity.recommendation_label ?? ""}`
+          );
         markers.current.push(marker);
       }
     });
@@ -232,6 +279,25 @@ export default function RecommenderHome() {
           size="small"
           style={{ marginBottom: 16 }}
         />
+        <TextField
+          label="Plan over (hours)"
+          type="number"
+          value={planningHours}
+          onChange={e => setPlanningHours(Number(e.target.value))}
+          size="small"
+          style={{ marginBottom: 16 }}
+        />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={sensitiveToAirQuality}
+              onChange={e => setSensitiveToAirQuality(e.target.checked)}
+            />
+          }
+          label="Sensitive to air quality"
+          sx={{ marginBottom: 1 }}
+        />
         <Button variant="outlined" onClick={useGeolocation} sx={{ mr: 1 }}>
           Use my location
         </Button>
@@ -244,55 +310,80 @@ export default function RecommenderHome() {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
         <div>
-          {recs.map((r) => (
-            <div key={r.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 12, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <b>{r.name}</b>
-                <span style={{ fontSize: 12, opacity: 0.7 }}>
-                  #{r.position ?? "-"}
-                </span>
-              </div>
-              <div style={{ marginTop: 6 }}>
-                {r.category} • {r.indoor ? "indoor" : "outdoor"} • {r.distance_km.toFixed(2)} km
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
-                {r.reason}
-              </div>
-              <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => sendEvent(r, "click")}
+          {Object.entries(groupedRecs).map(([group, items]) => (
+            <section key={group} style={{ marginBottom: 18 }}>
+              <h3 style={{ margin: "8px 0" }}>{group}</h3>
+
+              {items.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    border: "1px solid #eee",
+                    borderRadius: 8,
+                    padding: 12,
+                    marginBottom: 10,
+                  }}
                 >
-                  Click
-                </Button>
-                <Button
-                  variant="contained"
-                  color="success"
-                  size="small"
-                  onClick={() => sendEvent(r, "save")}
-                >
-                  Save
-                </Button>
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  size="small"
-                  onClick={() => sendEvent(r, "complete")}
-                >
-                  Complete
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  size="small"
-                  onClick={() => sendEvent(r, "dismiss")}
-                >
-                  Dismiss
-                </Button>
-                <RatingButtons activity={r} />
-              </div>
-            </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <b>{r.name}</b>
+                    <span style={{ fontSize: 12, opacity: 0.7 }}>
+                      #{r.position ?? "-"}
+                    </span>
+                  </div>
+
+                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {r.recommendation_label && (
+                      <Chip label={r.recommendation_label} size="small" color="primary" />
+                    )}
+
+                    {r.alert_severity && r.alert_severity > 0 ? (
+                      <Chip label={`SMP ${r.alert_severity}`} size="small" color="warning" />
+                    ) : null}
+
+                    {r.air_quality_score != null && r.air_quality_score > 0.35 ? (
+                      <Chip label="Air quality caution" size="small" color="warning" />
+                    ) : null}
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    {r.category} • {r.indoor ? "indoor" : "outdoor"} • {r.distance_km.toFixed(2)} km
+                    {formatBestWindow(r) ? ` • Best: ${formatBestWindow(r)}` : ""}
+                  </div>
+
+                  <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
+                    {r.reason}
+                  </div>
+
+                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                    Weather: {r.weather_temp_c?.toFixed(1)}°C,
+                    rain {r.weather_precip_prob?.toFixed(0)}%,
+                    wind {r.weather_wind_kmh?.toFixed(0)} km/h
+                    {r.air_quality_pm2_5 != null ? ` • PM2.5 ${r.air_quality_pm2_5.toFixed(0)}` : ""}
+                    {r.air_quality_uv_index != null ? ` • UV ${r.air_quality_uv_index.toFixed(0)}` : ""}
+                  </div>
+
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button variant="outlined" size="small" onClick={() => sendEvent(r, "click")}>
+                      Click
+                    </Button>
+
+                    <Button variant="contained" color="success" size="small" onClick={() => sendEvent(r, "save")}>
+                      Save
+                    </Button>
+
+                    <Button variant="contained" color="secondary" size="small" onClick={() => sendEvent(r, "complete")}>
+                      Complete
+                    </Button>
+
+                    <Button variant="outlined" color="error" size="small" onClick={() => sendEvent(r, "dismiss")}>
+                      Dismiss
+                    </Button>
+
+                    <RatingButtons activity={r} />
+                  </div>
+                </div>
+              ))}
+            </section>
           ))}
         </div>
 
