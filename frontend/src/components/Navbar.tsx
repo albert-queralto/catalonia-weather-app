@@ -118,7 +118,8 @@ export default function Navbar() {
               navLink("/suggest-activity", "Suggest activity", "suggest-activity"),
             ]
           )}
-          {navLink("/historical", "Historical data", "historical-data")}
+          {navLink("/historical", "Station explorer", "station-explorer")}
+          {navLink("/historical-map", "Station map", "station-map")}
           {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
           {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
           {navLink("/profile", "Profile", "profile")}

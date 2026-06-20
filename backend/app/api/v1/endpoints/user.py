@@ -26,14 +26,33 @@ def update_me(
 ):
     if payload.email:
         user.email = payload.email
+
     if payload.password:
         user.password_hash = hash_password(payload.password)
+
     if payload.notification_preferences is not None:
         user.notification_preferences = payload.notification_preferences
+
     if payload.favorite_comarques is not None:
         user.favorite_comarques = payload.favorite_comarques
+
+    if payload.alert_subscribe_current_location is not None:
+        user.alert_subscribe_current_location = payload.alert_subscribe_current_location
+
+    if payload.alert_current_comarca is not None:
+        user.alert_current_comarca = payload.alert_current_comarca
+
+    if payload.alert_meteor_types is not None:
+        user.alert_meteor_types = payload.alert_meteor_types
+
+    if payload.alert_min_severity is not None:
+        if payload.alert_min_severity < 0 or payload.alert_min_severity > 6:
+            raise HTTPException(status_code=400, detail="alert_min_severity must be between 0 and 6")
+        user.alert_min_severity = payload.alert_min_severity
+
     db.commit()
     db.refresh(user)
+
     return user
 
 @router.delete("/{user_id}", status_code=204)

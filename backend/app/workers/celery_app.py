@@ -33,6 +33,11 @@ celery_app.conf.beat_schedule = {
         'task': 'app.workers.tasks.retrain_recommender_model',
         'schedule': crontab(day_of_week=1, hour=2, minute=0),  # Monday 2 AM
     },
+    "capture-station-forecast-snapshots-every-6-hours": {
+        "task": "app.workers.tasks.capture_station_forecast_snapshots",
+        "schedule": crontab(minute=0, hour="*/6"),
+        "args": (None,),
+    },
     # "refresh-radar-timestamps-every-5-min": {
     #     "task": "app.workers.tasks.refresh_radar_timestamps",
     #     "schedule": 300.0,

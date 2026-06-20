@@ -117,3 +117,22 @@ def retrain_recommender_model():
         return {"status": "success", "output": result.stdout}
     else:
         return {"status": "failed", "error": result.stderr}
+    
+@celery_app.task
+def capture_station_forecast_snapshots(limit: int | None = None):
+    """
+    Store Open-Meteo forecasts for Meteocat station locations.
+    Run this every 6 or 12 hours so forecast accuracy can be calculated later.
+    """
+    import asyncio
+
+    from app.db.session import SessionLocal
+    from app.services.station_analytics.forecast_accuracy import (
+        capture_openmeteo_forecasts_for_all_stations,
+    )
+
+    async def run():
+        with SessionLocal() as db:
+            return await capture_openmeteo_forecasts_for_all_stations(db, limit=limit)
+
+    return asyncio.run(run())

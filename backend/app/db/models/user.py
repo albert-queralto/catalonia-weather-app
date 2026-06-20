@@ -20,6 +20,10 @@ class User(Base):
     is_verified = Column(Boolean, nullable=False, default=False)
     verification_token = Column(String, nullable=True)
     reset_token = Column(String, nullable=True)
+    alert_subscribe_current_location = Column(Boolean, nullable=False, default=False)
+    alert_current_comarca = Column(String, nullable=True)
+    alert_meteor_types = Column(ARRAY(String), nullable=True, default=[])
+    alert_min_severity = Column(Integer, nullable=False, default=2)
 
 class UserPreference(Base):
     __tablename__ = "user_preferences"

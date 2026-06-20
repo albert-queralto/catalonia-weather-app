@@ -52,7 +52,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_session)):
     verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
     send_email(u.email, "Verify your email", f"Click to verify: {verify_url}")
 
-    return MeOut(id=u.id, email=u.email, role=u.role, is_active=u.is_active, is_verified=u.is_verified)  # type: ignore
+    return u
 
 @router.post("/token", response_model=TokenOut)
 def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_session)):
@@ -89,9 +89,9 @@ def me(user: User = Depends(get_current_user)):
         user (User): The current authenticated user (injected by dependency).
 
     Returns:
-        MeOut: The user's public information.
+        user: The user's public information.
     """
-    return MeOut(id=user.id, email=user.email, role=user.role, is_active=user.is_active, is_verified=user.is_verified)  # type: ignore
+    return user
 
 @router.get("/users")
 def list_users(db: Session = Depends(get_session)):

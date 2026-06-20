@@ -7,7 +7,7 @@ from typing import Optional
 
 import httpx
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -194,8 +194,8 @@ class MeteocatClient:
             db.commit()
             
     async def fetch_and_store_station_variable_values(self, codi_estacio: str, any: int, mes: int, dia: int):
-        # Fetch measured data
         measured_data = await self.fetch_station_measured_data(codi_estacio, any, mes, dia)
+
         if not measured_data:
             return
 
@@ -204,32 +204,59 @@ class MeteocatClient:
                 return dt.replace(tzinfo=None)
             return dt
 
+        measurement_date = datetime(any, mes, dia)
+
         with SessionLocal() as db:
             for station_data in measured_data:
-                # Create measurement record
-                measurement = StationMeasurement(
-                    codi_estacio=station_data["codi"],
-                    date=datetime(any, mes, dia),
-                )
-                db.add(measurement)
-                db.flush()  # Get measurement.id
+                station_code = station_data["codi"]
+
+                existing = db.execute(
+                    select(StationMeasurement).where(
+                        StationMeasurement.codi_estacio == station_code,
+                        StationMeasurement.date == measurement_date,
+                    )
+                ).scalar_one_or_none()
+
+                if existing:
+                    db.execute(
+                        delete(StationVariableValue).where(
+                            StationVariableValue.measurement_id == existing.id
+                        )
+                    )
+                    measurement = existing
+                else:
+                    measurement = StationMeasurement(
+                        codi_estacio=station_code,
+                        date=measurement_date,
+                    )
+                    db.add(measurement)
+                    db.flush()
 
                 for var in station_data.get("variables", []):
                     codi_variable = var["codi"]
+
                     for lecture in var.get("lectures", []):
                         valor = lecture.get("valor")
                         data_lecture = lecture.get("data")
+
+                        if valor is None:
+                            continue
+
                         dt = None
+
                         if data_lecture:
                             dt = datetime.fromisoformat(data_lecture.replace("Z", "+00:00"))
                             dt = make_naive(dt)
+
                         variable_value = StationVariableValue(
                             measurement_id=measurement.id,
                             codi_variable=codi_variable,
-                            valor=valor,
+                            valor=float(valor),
                             data=dt,
                         )
+
                         db.add(variable_value)
+
             db.commit()
 
 meteocat_client = MeteocatClient()

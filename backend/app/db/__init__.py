@@ -8,7 +8,9 @@ from .models import (
     StationVariable,
     StationVariableValue,
     User,
-    UserPreference
+    UserPreference,
+    ForecastSnapshot,
+    ForecastHourly,
 )
 
 
@@ -23,4 +25,6 @@ __all__ = [
     "StationVariableValue",
     "User",
     "UserPreference",
+    "ForecastSnapshot",
+    "ForecastHourly",
 ]

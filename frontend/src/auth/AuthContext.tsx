@@ -6,6 +6,14 @@ type User = {
   role: string;
   is_active: boolean;
   is_verified: boolean;
+
+  notification_preferences: boolean;
+  favorite_comarques: string[];
+
+  alert_subscribe_current_location: boolean;
+  alert_current_comarca?: string | null;
+  alert_meteor_types: string[];
+  alert_min_severity: number;
 };
 
 type AuthState = {

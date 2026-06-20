@@ -5,6 +5,8 @@ from .meteocat import (
     StationMeasurement,
     StationVariable,
     StationVariableValue,
+    ForecastSnapshot,
+    ForecastHourly,
 )
 from .user import User, UserPreference
 from .activity_suggestion import ActivitySuggestion, Event
@@ -22,4 +24,6 @@ __all__ = [
     "ActivitySuggestion",
     "Event",
     "Category",
+    "ForecastSnapshot",
+    "ForecastHourly",
 ]

@@ -5,6 +5,8 @@ import { getRecommendations, postEvent } from "../api/endpoints";
 import { TextField, Button, Checkbox, FormControlLabel, Chip } from "@mui/material";
 import type { ActivityOut } from "../api/types";
 import 'leaflet/dist/leaflet.css';
+import AlertActionCards from "./AlertActionCards";
+import AlertsTimeline from "./AlertsTimeline";
 
 export default function RecommenderHome() {
   const { token, user } = useAuth();
@@ -234,6 +236,10 @@ function formatBestWindow(activity: ActivityOut) {
     );
   }
 
+  function activityIsOutdoor(activity: ActivityOut) {
+    return !activity.indoor;
+  }
+
   return (
     <div style={{ padding: 16 }}>
       <h2>Activity Recommendations</h2>
@@ -288,6 +294,9 @@ function formatBestWindow(activity: ActivityOut) {
           style={{ marginBottom: 16 }}
         />
 
+        <AlertActionCards lat={lat} lon={lon} radiusKm={radiusKm} />
+        <AlertsTimeline lat={lat} lon={lon} radiusKm={radiusKm} />
+
         <FormControlLabel
           control={
             <Checkbox
@@ -336,50 +345,22 @@ function formatBestWindow(activity: ActivityOut) {
                       <Chip label={r.recommendation_label} size="small" color="primary" />
                     )}
 
-                    {r.alert_severity && r.alert_severity > 0 ? (
-                      <Chip label={`SMP ${r.alert_severity}`} size="small" color="warning" />
-                    ) : null}
-
-                    {r.air_quality_score != null && r.air_quality_score > 0.35 ? (
-                      <Chip label="Air quality caution" size="small" color="warning" />
-                    ) : null}
+                    {activityIsOutdoor(r) && (
+                      <Chip
+                        label="Check weather alerts"
+                        size="small"
+                        color="warning"
+                      />
+                    )}
                   </div>
 
                   <div style={{ marginTop: 6 }}>
-                    {r.category} • {r.indoor ? "indoor" : "outdoor"} • {r.distance_km.toFixed(2)} km
-                    {formatBestWindow(r) ? ` • Best: ${formatBestWindow(r)}` : ""}
+                    {r.category} • {r.indoor ? "indoor" : "outdoor"} •{" "}
+                    {r.distance_km.toFixed(2)} km
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
                     {r.reason}
-                  </div>
-
-                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                    Weather: {r.weather_temp_c?.toFixed(1)}°C,
-                    rain {r.weather_precip_prob?.toFixed(0)}%,
-                    wind {r.weather_wind_kmh?.toFixed(0)} km/h
-                    {r.air_quality_pm2_5 != null ? ` • PM2.5 ${r.air_quality_pm2_5.toFixed(0)}` : ""}
-                    {r.air_quality_uv_index != null ? ` • UV ${r.air_quality_uv_index.toFixed(0)}` : ""}
-                  </div>
-
-                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Button variant="outlined" size="small" onClick={() => sendEvent(r, "click")}>
-                      Click
-                    </Button>
-
-                    <Button variant="contained" color="success" size="small" onClick={() => sendEvent(r, "save")}>
-                      Save
-                    </Button>
-
-                    <Button variant="contained" color="secondary" size="small" onClick={() => sendEvent(r, "complete")}>
-                      Complete
-                    </Button>
-
-                    <Button variant="outlined" color="error" size="small" onClick={() => sendEvent(r, "dismiss")}>
-                      Dismiss
-                    </Button>
-
-                    <RatingButtons activity={r} />
                   </div>
                 </div>
               ))}

@@ -23,6 +23,7 @@ import VerifyEmailPage from "./components/EmailVerification";
 import RequestPasswordResetPage from "./components/PasswordResetRequest";
 import ResetPasswordPage from "./components/PasswordReset";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import StationExplorerPage from './components/StationExplorerPage';
 
 
 function AppRoutes() {
@@ -60,7 +61,17 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/historical" element={<ComarquesMap />} />
+        <Route path="/historical" element={
+          <ProtectedRoute>
+            <StationExplorerPage />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/historical-map" element={
+          <ProtectedRoute>
+            <ComarquesMap />
+          </ProtectedRoute>
+        } />
         <Route path="/air-quality-map" element={<AirQualityMap />} />
         <Route path="/episodis-oberts" element={<EpisodisOberts />} />
         <Route path="/suggest-activity" element={<SuggestActivityPage />} />

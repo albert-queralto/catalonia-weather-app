@@ -10,6 +10,50 @@ export default function UserProfilePage() {
   const [password, setPassword] = useState("");
   const [notificationPreferences, setNotificationPreferences] = useState(user?.notification_preferences || true);
   const [favoriteComarques, setFavoriteComarques] = useState(user?.favorite_comarques || []);
+  const [alertSubscribeCurrentLocation, setAlertSubscribeCurrentLocation] = useState(
+    user?.alert_subscribe_current_location ?? false
+  );
+
+  const [alertCurrentComarca, setAlertCurrentComarca] = useState(
+    user?.alert_current_comarca ?? ""
+  );
+
+  const [alertMeteorTypes, setAlertMeteorTypes] = useState(
+    user?.alert_meteor_types?.join(",") ?? ""
+  );
+
+  const [alertMinSeverity, setAlertMinSeverity] = useState(
+    user?.alert_min_severity ?? 2
+  );
+
+  const useCurrentLocationForAlerts = () => {
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      const res = await fetch(
+        `${API_BASE_URL}/comarcas/lookup?lat=${lat}&lon=${lon}`
+      );
+
+      if (!res.ok) {
+        alert("Could not detect comarca from current location.");
+        return;
+      }
+
+      const comarca = await res.json();
+
+      if (!comarca?.code) {
+        alert("No comarca found for your current location.");
+        return;
+      }
+
+      setAlertCurrentComarca(comarca.code);
+      setAlertSubscribeCurrentLocation(true);
+
+      alert(`Alert location set to ${comarca.name}`);
+    });
+  };
+
 
   const handleSave = async () => {
     const res = await fetch(`${API_BASE_URL}/users/me`, {
@@ -23,6 +67,14 @@ export default function UserProfilePage() {
         password: password || undefined,
         notification_preferences: notificationPreferences,
         favorite_comarques: favoriteComarques,
+
+        alert_subscribe_current_location: alertSubscribeCurrentLocation,
+        alert_current_comarca: alertCurrentComarca || null,
+        alert_meteor_types: alertMeteorTypes
+          .split(",")
+          .map(x => x.trim())
+          .filter(Boolean),
+        alert_min_severity: alertMinSeverity,
       }),
     });
     if (res.ok) {
@@ -61,6 +113,84 @@ export default function UserProfilePage() {
       <label>Notification Preferences: <input type="checkbox" checked={notificationPreferences} onChange={e => setNotificationPreferences(e.target.checked)} /></label>
       <label>Favorite Comarques: <input value={favoriteComarques} onChange={e => setFavoriteComarques(e.target.value.split(","))} /></label>
       <button onClick={handleSave}>Save</button>
+
+      <h3>Weather alert subscriptions</h3>
+      <label>
+        Receive weather notifications:
+        <input
+          type="checkbox"
+          checked={notificationPreferences}
+          onChange={e => setNotificationPreferences(e.target.checked)}
+        />
+      </label>
+
+      <br />
+
+      <label>
+        Favorite comarques:
+        <input
+          value={favoriteComarques.join(",")}
+          onChange={e =>
+            setFavoriteComarques(
+              e.target.value
+                .split(",")
+                .map(x => x.trim())
+                .filter(Boolean)
+            )
+          }
+          placeholder="08,13,33"
+        />
+      </label>
+
+      <br />
+
+      <label>
+        Subscribe to current location:
+        <input
+          type="checkbox"
+          checked={alertSubscribeCurrentLocation}
+          onChange={e => setAlertSubscribeCurrentLocation(e.target.checked)}
+        />
+      </label>
+
+      <button type="button" onClick={useCurrentLocationForAlerts}>
+        Use my current comarca
+      </button>
+
+      <br />
+
+      <label>
+        Current location comarca code:
+        <input
+          value={alertCurrentComarca}
+          onChange={e => setAlertCurrentComarca(e.target.value)}
+          placeholder="13"
+        />
+      </label>
+
+      <br />
+
+      <label>
+        Meteor types:
+        <input
+          value={alertMeteorTypes}
+          onChange={e => setAlertMeteorTypes(e.target.value)}
+          placeholder="Pluja, Vent, Calor"
+        />
+      </label>
+
+      <br />
+
+      <label>
+        Minimum severity:
+        <input
+          type="number"
+          min={0}
+          max={6}
+          value={alertMinSeverity}
+          onChange={e => setAlertMinSeverity(Number(e.target.value))}
+        />
+      </label>
     </div>
   );
 }

@@ -33,11 +33,27 @@ class MeOut(BaseModel):
     role: Role
     is_active: bool
     is_verified: bool
+
+    notification_preferences: bool = True
+    favorite_comarques: List[str] = []
+
+    alert_subscribe_current_location: bool = False
+    alert_current_comarca: Optional[str] = None
+    alert_meteor_types: List[str] = []
+    alert_min_severity: int = 2
     
 class UpdateProfileIn(BaseModel):
-    email: Optional[EmailStr]
-    password: Optional[str]
-    
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+
+    notification_preferences: Optional[bool] = None
+    favorite_comarques: Optional[List[str]] = None
+
+    alert_subscribe_current_location: Optional[bool] = None
+    alert_current_comarca: Optional[str] = None
+    alert_meteor_types: Optional[List[str]] = None
+    alert_min_severity: Optional[int] = None
+
     @validator("password")
     def password_strong(cls, v):
         if v is None:
@@ -53,9 +69,6 @@ class UpdateProfileIn(BaseModel):
         if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
             raise ValueError("Password must contain a special character")
         return v
-
-    notification_preferences: Optional[bool]
-    favorite_comarques: Optional[List[str]]
     
 class PasswordResetRequestIn(BaseModel):
     email: EmailStr

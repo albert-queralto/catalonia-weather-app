@@ -111,6 +111,16 @@ export type Me = {
   id: string;
   email: string;
   role: Role;
+  is_active: boolean;
+  is_verified: boolean;
+
+  notification_preferences: boolean;
+  favorite_comarques: string[];
+
+  alert_subscribe_current_location: boolean;
+  alert_current_comarca?: string | null;
+  alert_meteor_types: string[];
+  alert_min_severity: number;
 };
 
 export type TokenOut = {
@@ -186,3 +196,143 @@ export type EventIn = {
 };
 
 
+export type AlertComarcaOut = {
+  code: string;
+  name: string;
+  severity: number;
+  threshold?: string | null;
+};
+
+export type AffectedActivityOut = {
+  id: string;
+  name: string;
+  category: string;
+  indoor: boolean;
+};
+
+export type AlertActionCard = {
+  id: string;
+  meteor: string;
+  severity: number;
+  severity_label: string;
+  starts_at: string;
+  ends_at: string;
+  affected_comarques: AlertComarcaOut[];
+  recommended_action: string;
+  recommender_effect: string;
+  affected_recommended_activities: AffectedActivityOut[];
+};
+
+export type AlertTimelineSlot = {
+  label: string;
+  starts_at: string;
+  ends_at: string;
+  max_severity: number;
+  cards: AlertActionCard[];
+};
+
+export type StationSummaryOut = {
+  codi: string;
+  nom?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  altitud?: number | null;
+  comarca?: string | null;
+};
+
+export type StationVariableSummaryOut = {
+  codi: number;
+  nom: string;
+  unitat: string;
+  acronim: string;
+  tipus: string;
+  decimals: number;
+};
+
+export type StationValuePointOut = {
+  time: string;
+  value: number;
+};
+
+export type DailyStationStatOut = {
+  date: string;
+  min_value?: number | null;
+  max_value?: number | null;
+  avg_value?: number | null;
+  count: number;
+  expected_count: number;
+  missing_count: number;
+  missing_pct: number;
+};
+
+export type MissingIntervalOut = {
+  starts_at: string;
+  ends_at: string;
+  gap_hours: number;
+};
+
+export type NearbyStationComparisonOut = {
+  codi: string;
+  nom: string;
+  distance_km: number;
+  avg_value?: number | null;
+  delta_vs_selected?: number | null;
+};
+
+export type SameDayLastYearOut = {
+  current_date: string;
+  current_avg?: number | null;
+  last_year_date: string;
+  last_year_avg?: number | null;
+  delta?: number | null;
+};
+
+export type WeekHistoricalAverageOut = {
+  current_week_start: string;
+  current_week_end: string;
+  current_avg?: number | null;
+  historical_avg?: number | null;
+  delta?: number | null;
+  years_used: number;
+};
+
+export type MicroclimateInsightOut = {
+  reference_station_code: string;
+  reference_station_name: string;
+  daypart: string;
+  avg_delta?: number | null;
+  sample_count: number;
+  text: string;
+};
+
+export type StationExplorerOut = {
+  station: StationSummaryOut;
+  variable: StationVariableSummaryOut;
+  points: StationValuePointOut[];
+  daily_stats: DailyStationStatOut[];
+  missing_intervals: MissingIntervalOut[];
+  nearby_comparison: NearbyStationComparisonOut[];
+  today_vs_same_day_last_year?: SameDayLastYearOut | null;
+  this_week_vs_historical_average?: WeekHistoricalAverageOut | null;
+  microclimate_insights: MicroclimateInsightOut[];
+};
+
+export type ForecastAccuracyPointOut = {
+  time: string;
+  observed: number;
+  forecast: number;
+  error: number;
+  absolute_error: number;
+};
+
+export type ForecastAccuracySummaryOut = {
+  provider: string;
+  station_code: string;
+  metric: "temperature" | "precipitation" | "wind";
+  lead_hours: number;
+  sample_count: number;
+  mae?: number | null;
+  rmse?: number | null;
+  bias?: number | null;
+  points: ForecastAccuracyPointOut[];
+};
