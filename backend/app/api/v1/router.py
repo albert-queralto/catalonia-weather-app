@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     user,
     analytics,
     station_analytics,
+    station_debug,
 )
 
 api_router = APIRouter()
@@ -30,3 +31,4 @@ api_router.include_router(category.router, prefix="/v1", tags=["categories"])
 api_router.include_router(user.router, prefix="/v1", tags=["users"])
 api_router.include_router(analytics.router, prefix="/v1", tags=["analytics"])
 api_router.include_router(station_analytics.router, prefix="/v1", tags=["station_analytics"])
+api_router.include_router(station_debug.router, prefix="/v1", tags=["station_debug"])

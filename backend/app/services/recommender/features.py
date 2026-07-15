@@ -17,10 +17,6 @@ CATALONIA_TZ = ZoneInfo("Europe/Madrid")
 
 @dataclass(frozen=True)
 class ActivityRow:
-    """
-    Lightweight activity representation used by the recommender.
-    This is typically built from SQL query rows (id/name/category/tags/etc + lat/lon).
-    """
     id: str
     name: str
     category: str
@@ -34,6 +30,7 @@ class ActivityRow:
     lon: float
     validated: bool
     created_at: datetime
+    opening_hours: Optional[dict] = None
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -91,6 +88,78 @@ def compute_weather_penalties(
         cold_penalty=cold_penalty,
         heat_penalty=heat_penalty
     )
+    
+def classify_weather_condition(
+    temp_c: float,
+    precip_prob: float,
+    wind_kmh: float,
+    uv_index: float = 0.0,
+    air_quality_score: float = 0.0,
+) -> str:
+    if precip_prob >= 60:
+        return "rainy"
+    if wind_kmh >= 35:
+        return "windy"
+    if temp_c <= 8:
+        return "cold"
+    if temp_c >= 30:
+        return "hot"
+    if uv_index >= 6:
+        return "high_uv"
+    if air_quality_score >= 60:
+        return "polluted"
+    return "mild"
+
+
+def estimate_transport_time_min(distance_km: float, mode: str = "walking") -> float:
+    speeds = {
+        "walking": 4.5,
+        "cycling": 14.0,
+        "driving": 35.0,
+        "public_transport": 20.0,
+    }
+    speed = speeds.get(mode, 4.5)
+    return float((distance_km / speed) * 60.0)
+
+
+def season_from_month(month: int) -> float:
+    # 0=winter, 1=spring, 2=summer, 3=autumn
+    if month in (12, 1, 2):
+        return 0.0
+    if month in (3, 4, 5):
+        return 1.0
+    if month in (6, 7, 8):
+        return 2.0
+    return 3.0
+
+
+def is_ozone_season(month: int) -> bool:
+    return month in (5, 6, 7, 8, 9)
+
+
+def compute_ozone_penalty(
+    *,
+    indoor: bool,
+    ozone: float,
+    month: int,
+    hour: int,
+) -> float:
+    if indoor:
+        return 0.0
+
+    if not is_ozone_season(month):
+        return 0.0
+
+    # Tropospheric ozone tends to matter most for outdoor activity in warm daylight hours.
+    daylight_peak = 1.0 if 11 <= hour <= 18 else 0.5
+
+    if ozone <= 100:
+        return 0.0
+    if ozone <= 130:
+        return 0.25 * daylight_peak
+    if ozone <= 180:
+        return 0.6 * daylight_peak
+    return 1.0 * daylight_peak
 
 def build_features(
     user_pref: Dict[str, float],
@@ -103,6 +172,13 @@ def build_features(
     weather_wind_kmh: float,
     weather_is_day: float,
     *,
+    apparent_temp_c: float = 0.0,
+    uv_index: float = 0.0,
+    air_quality_score: float = 0.0,
+    ozone: float = 0.0,
+    alert_severity: int = 0,
+    transport_mode: str = "walking",
+    is_school_holiday: bool = False,
     position: float = 0.0,
     now: Optional[datetime] = None,
     user_stats: Optional[Dict[str, float]] = None,
@@ -115,6 +191,18 @@ def build_features(
     activity_stats = activity_stats or {}
 
     distance = haversine_km(user_lat, user_lon, activity.lat, activity.lon)
+    transport_time_min = estimate_transport_time_min(distance, transport_mode)
+    month = now.month
+    season = season_from_month(month)
+    is_evening = 1.0 if 18 <= now.hour <= 23 else 0.0
+    is_open_now = is_open_at(activity.opening_hours, now)
+    ozone_season = 1.0 if is_ozone_season(month) else 0.0
+    ozone_penalty = compute_ozone_penalty(
+        indoor=activity.indoor,
+        ozone=ozone,
+        month=month,
+        hour=now.hour,
+    )
     cat_weight = float(user_pref.get(activity.category, 0.0))
 
     tag_overlap = compute_tag_overlap(activity.tags, user_tag_pref)
@@ -128,11 +216,10 @@ def build_features(
     penalties = compute_weather_penalties(
         indoor=activity.indoor,
         covered=activity.covered,
+        weather_temp_c=weather_temp_c,
         weather_precip_prob=weather_precip_prob,
         weather_wind_kmh=weather_wind_kmh,
-        weather_temp_c=weather_temp_c
     )
-
     hour_of_day = float(now.hour)
     day_of_week = float(now.weekday())
     is_weekend = 1.0 if now.weekday() >= 5 else 0.0
@@ -179,6 +266,32 @@ def build_features(
         "activity_avg_rating": float(activity_stats.get("activity_avg_rating", 2.5)),
         "activity_engagement_count": float(activity_stats.get("activity_engagement_count", 0.0)),
         "activity_engagement_rate": float(activity_stats.get("activity_engagement_rate", 0.0)),
+        "apparent_temp_c": float(apparent_temp_c),
+        "uv_index": float(uv_index),
+        "air_quality_score": float(air_quality_score),
+        "ozone": float(ozone),
+        "alert_severity": float(alert_severity),
+
+        "is_open_now": float(is_open_now),
+        "transport_time_min": float(transport_time_min),
+
+        "month": float(month),
+        "season": float(season),
+        "is_evening": float(is_evening),
+        "is_school_holiday": 1.0 if is_school_holiday else 0.0,
+
+        "user_avg_completed_duration": float(user_stats.get("user_avg_completed_duration", 60.0)),
+        "user_bad_weather_dismiss_rate": float(user_stats.get("user_bad_weather_dismiss_rate", 0.0)),
+
+        "activity_weather_view_count": float(activity_stats.get("activity_weather_view_count", 0.0)),
+        "activity_weather_engagement_rate": float(activity_stats.get("activity_weather_engagement_rate", 0.0)),
+
+        "ozone_season": ozone_season,
+        "ozone_penalty": ozone_penalty,
+        
+        "outdoor_aq_risk": (1.0 - indoor_f) * float(air_quality_score),
+        "outdoor_uv_risk": (1.0 - indoor_f) * float(uv_index),
+        "outdoor_alert_risk": (1.0 - indoor_f) * float(alert_severity),
     }
 
     return ensure_feature_contract(raw)
@@ -327,6 +440,7 @@ class WeatherHour:
     """One hourly forecast point, normalized to UTC."""
     time: datetime
     temp_c: float
+    apparent_temp_c: float
     precip_prob: float
     wind_kmh: float
     is_day: float
@@ -334,18 +448,14 @@ class WeatherHour:
 
 @dataclass(frozen=True)
 class WeatherSlice:
-    """
-    Aggregated weather snapshot over a time window.
-    - precip_prob is in [0..100]
-    - is_day is 0/1 (or average if mixed)
-    """
     temp_c: float
+    apparent_temp_c: float
     precip_prob: float
     wind_kmh: float
     is_day: float
     starts_at: Optional[datetime] = None
     ends_at: Optional[datetime] = None
-
+    
 
 def _parse_iso_utc(ts: str) -> datetime:
     # Open-Meteo returns ISO timestamps, usually without timezone; we use UTC.
@@ -383,7 +493,7 @@ async def fetch_weather_timeline(
     params = {
         "latitude": lat,
         "longitude": lon,
-        "hourly": "temperature_2m,precipitation_probability,windspeed_10m,is_day",
+        "hourly": "temperature_2m,apparent_temperature,precipitation_probability,windspeed_10m,is_day",
         "timezone": "UTC",
         "forecast_days": forecast_days,
     }
@@ -396,11 +506,12 @@ async def fetch_weather_timeline(
     hourly = data.get("hourly") or {}
     times = hourly.get("time") or []
     temps = hourly.get("temperature_2m") or []
+    apparent = hourly.get("apparent_temperature") or []
     pprob = hourly.get("precipitation_probability") or []
     wind = hourly.get("windspeed_10m") or []
     is_day = hourly.get("is_day") or []
     
-    if not (len(times) == len(temps) == len(pprob) == len(wind) == len(is_day)) or len(times) == 0:
+    if not (len(times) == len(temps) == len(apparent) == len(pprob) == len(wind) == len(is_day)) or len(times) == 0:
         raise RuntimeError("Unexpected Open-Meteo response format")
     
     points: List[WeatherHour] = []
@@ -415,6 +526,7 @@ async def fetch_weather_timeline(
                     precip_prob=float(pprob[i] if pprob[i] is not None else 0.0),
                     wind_kmh=float(wind[i] if wind[i] is not None else 0.0),
                     is_day=float(is_day[i] if is_day[i] is not None else 0.0),
+                    apparent_temp_c=float(apparent[i] if apparent[i] is not None else 0.0),
                 )
             )
     
@@ -430,6 +542,7 @@ async def fetch_weather_timeline(
                 precip_prob=float(pprob[nearest_idx] if pprob[nearest_idx] is not None else 0.0),
                 wind_kmh=float(wind[nearest_idx] if wind[nearest_idx] is not None else 0.0),
                 is_day=float(is_day[nearest_idx] if is_day[nearest_idx] is not None else 0.0),
+                apparent_temp_c=float(apparent[nearest_idx] if apparent[nearest_idx] is not None else 0.0),
             )
         ]
 
@@ -465,6 +578,7 @@ def aggregate_weather_slice(
         is_day=sum(p.is_day for p in selected) / n,
         starts_at=start,
         ends_at=end,
+        apparent_temp_c=sum(p.apparent_temp_c for p in selected) / n,
     )
 
 
@@ -493,3 +607,20 @@ async def fetch_weather_slice(
     )
     
     return aggregate_weather_slice(points, start, horizon_hours)
+
+
+def is_open_at(opening_hours: dict | None, now: datetime) -> float:
+    if not opening_hours:
+        return 1.0
+
+    keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    day_key = keys[now.weekday()]
+    intervals = opening_hours.get(day_key, [])
+
+    current = now.strftime("%H:%M")
+
+    for start, end in intervals:
+        if start <= current <= end:
+            return 1.0
+
+    return 0.0

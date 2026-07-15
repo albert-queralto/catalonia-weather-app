@@ -6,11 +6,14 @@ from typing import Dict, List, Optional, Tuple
 import joblib
 import numpy as np
 from uuid import UUID
+import hashlib
+import random
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
 
 from app.services.air_quality.schemas import AirQualityPoint
+from app.services.air_quality.health import label_european_aqi
 from app.services.recommender.features import (
     ActivityRow,
     WeatherHour,
@@ -21,6 +24,7 @@ from app.services.recommender.features import (
     recommendation_label,
 )
 from app.services.recommender.feature_contract import ensure_feature_contract, FEATURE_COLUMNS
+from app.services.recommender.features import classify_weather_condition
 
 
 @dataclass(frozen=True)
@@ -37,7 +41,12 @@ class AirQualityWindow:
     ozone: Optional[float] = None
     uv_index: Optional[float] = None
 
-    # 0 = good, 1 = bad
+    european_aqi: Optional[float] = None
+    health_label: str = "unknown"
+    health_advice: str = "Air-quality data is not available."
+    dominant_pollutant: Optional[str] = None
+
+    # 0 = good, 1 = bad. Use this for penalties.
     score: float = 0.0
 
 
@@ -55,6 +64,13 @@ class MLRecommender:
         self.model_path = model_path
         self.model = None
         self.feature_order: List[str] = []
+
+    def confidence_from_score(self, score: float) -> float:
+        if self.model is None:
+            return 0.35
+
+        p = max(0.0, min(1.0, float(score)))
+        return float(abs(p - 0.5) * 2.0)
 
     def load(self) -> None:
         try:
@@ -104,6 +120,67 @@ class MLRecommender:
         # Absolute fallback
         return 0.0
 
+def assign_ranking_strategy(user_id: UUID, request_id: UUID) -> str:
+    raw = f"{user_id}:{request_id}".encode("utf-8")
+    bucket = int(hashlib.sha256(raw).hexdigest(), 16) % 100
+
+    if bucket < 70:
+        return "baseline"
+    if bucket < 90:
+        return "epsilon_10"
+    return "epsilon_20"
+
+
+def exploration_rate_for_strategy(strategy: str) -> float:
+    if strategy == "epsilon_10":
+        return 0.10
+    if strategy == "epsilon_20":
+        return 0.20
+    return 0.0
+
+
+def apply_exploration(
+    ranked: List[dict],
+    *,
+    limit: int,
+    strategy: str,
+    user_id: UUID,
+    request_id: UUID,
+) -> List[dict]:
+    epsilon = exploration_rate_for_strategy(strategy)
+
+    if epsilon <= 0 or len(ranked) <= limit:
+        selected = ranked[:limit]
+        for row in selected:
+            row["exploration_bucket"] = "exploit"
+        return selected
+
+    exploit_n = max(1, int(limit * (1.0 - epsilon)))
+    explore_n = limit - exploit_n
+
+    exploit = ranked[:exploit_n]
+    pool = ranked[exploit_n:]
+
+    rng = random.Random(f"{user_id}:{request_id}:{strategy}")
+
+    pool = sorted(
+        pool,
+        key=lambda row: (
+            row.get("activity_view_count", 0.0),
+            row.get("created_at", ""),
+        ),
+    )
+
+    explore = rng.sample(pool, k=min(explore_n, len(pool)))
+
+    for row in exploit:
+        row["exploration_bucket"] = "exploit"
+
+    for row in explore:
+        row["exploration_bucket"] = "explore"
+
+    return exploit + explore
+
 def get_user_preferences(db: Session, user_id: UUID) -> Tuple[Dict[str, float], Dict[str, float]]:
     q = text("SELECT category, weight FROM user_preferences WHERE user_id = :uid")
     rows = db.execute(q, {"uid": str(user_id)}).fetchall()
@@ -122,20 +199,40 @@ def get_user_preferences(db: Session, user_id: UUID) -> Tuple[Dict[str, float], 
 
 def get_user_stats(db: Session, user_id: UUID) -> Dict[str, float]:
     q = text("""
-      SELECT
-        COUNT(*) AS total_events,
-        COUNT(DISTINCT activity_id) AS unique_activities,
-        AVG(rating) AS user_avg_rating,
-        SUM(CASE WHEN event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS user_engagement_count
-      FROM events
-      WHERE user_id = :uid
-    """)
+        SELECT
+            COUNT(*) AS total_events,
+            COUNT(DISTINCT e.activity_id) AS unique_activities,
+            AVG(e.rating) AS user_avg_rating,
+            SUM(CASE WHEN e.event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS user_engagement_count,
+
+            AVG(CASE WHEN e.event_type = 'complete' THEN a.duration_minutes END) AS user_avg_completed_duration,
+
+            AVG(
+            CASE
+                WHEN e.event_type = 'dismiss'
+                AND (
+                    COALESCE(e.weather_precip_prob, 0) >= 40
+                    OR COALESCE(e.weather_wind_kmh, 0) >= 30
+                    OR COALESCE(e.air_quality_score, 0) >= 60
+                    OR COALESCE(e.uv_index, 0) >= 6
+                )
+                THEN 1.0
+                WHEN e.event_type = 'dismiss' THEN 0.0
+            END
+            ) AS user_bad_weather_dismiss_rate
+
+        FROM events e
+        LEFT JOIN activities a ON a.id = e.activity_id
+        WHERE e.user_id = :uid
+        """)
     r = db.execute(q, {"uid": str(user_id)}).fetchone()
     total_events = float(r[0] or 0)
     unique_activities = float(r[1] or 0)
     user_avg_rating = float(r[2] or 2.5)
     user_engagement_count = float(r[3] or 0)
     user_exploration_rate = (unique_activities / total_events) if total_events > 0 else 0.0
+    user_avg_completed_duration = float(r[4] or 60.0)
+    user_bad_weather_dismiss_rate = float(r[5] or 0.0)
 
     return {
         "total_events": total_events,
@@ -143,24 +240,53 @@ def get_user_stats(db: Session, user_id: UUID) -> Dict[str, float]:
         "user_avg_rating": user_avg_rating,
         "user_engagement_count": user_engagement_count,
         "user_exploration_rate": user_exploration_rate,
+        "user_avg_completed_duration": user_avg_completed_duration,
+        "user_bad_weather_dismiss_rate": user_bad_weather_dismiss_rate,
     }
     
-def get_activity_stats_batch(db: Session, activity_ids: List[UUID]) -> Dict[str, Dict[str, float]]:
+def get_activity_stats_batch(
+    db: Session,
+    activity_ids: List[UUID],
+    weather_condition: str | None = None,
+) -> Dict[str, Dict[str, float]]:
     if not activity_ids:
         return {}
     
     q = text("""
-      SELECT
-        activity_id::text AS activity_id,
-        SUM(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) AS activity_view_count,
-        AVG(rating) AS activity_avg_rating,
-        SUM(CASE WHEN event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS activity_engagement_count
-      FROM events
+        SELECT
+            activity_id::text AS activity_id,
+            SUM(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) AS activity_view_count,
+            AVG(rating) AS activity_avg_rating,
+            SUM(CASE WHEN event_type IN ('click','save','complete') THEN 1 ELSE 0 END) AS activity_engagement_count,
+
+            SUM(
+            CASE
+                WHEN event_type = 'view'
+                AND (:weather_condition IS NULL OR weather_condition = :weather_condition)
+                THEN 1 ELSE 0
+            END
+            ) AS activity_weather_view_count,
+
+            SUM(
+            CASE
+                WHEN event_type IN ('click','save','complete')
+                AND (:weather_condition IS NULL OR weather_condition = :weather_condition)
+                THEN 1 ELSE 0
+            END
+            ) AS activity_weather_engagement_count
+
+        FROM events
         WHERE activity_id IN :activity_ids
         GROUP BY activity_id
-    """).bindparams(bindparam("activity_ids", expanding=True))
+        """).bindparams(bindparam("activity_ids", expanding=True))
     
-    rows = db.execute(q, {"activity_ids": activity_ids}).fetchall()
+    rows = db.execute(
+        q,
+        {
+            "activity_ids": activity_ids,
+            "weather_condition": weather_condition,
+        },
+    ).fetchall()
     out: Dict[str, Dict[str, float]] = {}
     for r in rows:
         activity_id = r[0]
@@ -168,11 +294,21 @@ def get_activity_stats_batch(db: Session, activity_ids: List[UUID]) -> Dict[str,
         activity_avg_rating = float(r[2] or 2.5)
         activity_engagement_count = float(r[3] or 0)
         activity_engagement_rate = (activity_engagement_count / activity_view_count) if activity_view_count > 0 else 0.0
+        activity_weather_view_count = float(r[4] or 0)
+        activity_weather_engagement_count = float(r[5] or 0)
+        activity_weather_engagement_rate = (
+            activity_weather_engagement_count / activity_weather_view_count
+            if activity_weather_view_count > 0
+            else 0.0
+        )
         out[activity_id] = {
             "activity_view_count": activity_view_count,
             "activity_avg_rating": activity_avg_rating,
             "activity_engagement_count": activity_engagement_count,
             "activity_engagement_rate": activity_engagement_rate,
+            "activity_weather_view_count": activity_weather_view_count,
+            "activity_weather_engagement_count": activity_weather_engagement_count,
+            "activity_weather_engagement_rate": activity_weather_engagement_rate,
         }
 
     return out
@@ -184,7 +320,8 @@ def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> L
         price_level, difficulty, duration_minutes,
         ST_Y(location::geometry) AS lat,
         ST_X(location::geometry) AS lon,
-        validated, created_at
+        validated, created_at,
+        opening_hours
       FROM activities
       WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lon,:lat),4326)::geography, :meters)
       AND validated = true
@@ -209,6 +346,7 @@ def fetch_candidates(db: Session, lat: float, lon: float, radius_km: float) -> L
             lon=float(r[10]),
             validated=bool(r[11]),
             created_at=r[12],
+            opening_hours=r[13],
         ))
     return out
 
@@ -312,6 +450,8 @@ def aggregate_air_quality_window(
     no2 = _avg([p.nitrogen_dioxide for p in selected])
     ozone = _avg([p.ozone for p in selected])
     uv = _avg([p.uv_index for p in selected])
+    european_aqi = _avg([p.european_aqi for p in selected])
+    health = label_european_aqi(european_aqi)
 
     pollutant_score = max(
         _normalize_threshold(pm2_5, 10, 25),
@@ -327,6 +467,10 @@ def aggregate_air_quality_window(
         nitrogen_dioxide=no2,
         ozone=ozone,
         uv_index=uv,
+        european_aqi=european_aqi,
+        health_label=health.label,
+        health_advice=health.advice,
+        dominant_pollutant=health.dominant_pollutant,
         score=pollutant_score,
     )
 
@@ -436,6 +580,8 @@ def recommend(
     weather_is_day: Optional[float] = None,
     limit: int = 20,
     *,
+    request_id: Optional[UUID] = None,
+    ranking_strategy: Optional[str] = None,
     weather_windows: Optional[List[WeatherSlice]] = None,
     air_quality_points: Optional[List[AirQualityPoint]] = None,
     alert_context: Optional[AlertContext] = None,
@@ -444,11 +590,24 @@ def recommend(
     cat_pref, tag_pref = get_user_preferences(db, user_id)
     candidates = fetch_candidates(db, lat, lon, radius_km)
 
+    request_id = request_id or UUID(int=0)
+    ranking_strategy = ranking_strategy or assign_ranking_strategy(user_id, request_id)
+
     if not candidates:
         return []
 
     user_stats = get_user_stats(db, user_id)
-    activity_stats_map = get_activity_stats_batch(db, [UUID(a.id) for a in candidates])
+    activity_ids = [UUID(a.id) for a in candidates]
+    activity_stats_cache: Dict[str, Dict[str, Dict[str, float]]] = {}
+
+    def stats_for_condition(condition: str) -> Dict[str, Dict[str, float]]:
+        if condition not in activity_stats_cache:
+            activity_stats_cache[condition] = get_activity_stats_batch(
+                db,
+                activity_ids,
+                weather_condition=condition,
+            )
+        return activity_stats_cache[condition]
 
     if not weather_windows:
         now = datetime.now(timezone.utc)
@@ -461,6 +620,7 @@ def recommend(
                 is_day=float(weather_is_day if weather_is_day is not None else 1.0),
                 starts_at=now,
                 ends_at=now + timedelta(hours=4),
+                apparent_temp_c=float(weather_temp_c or 0.0) if weather_temp_c is not None else 0.0,
             )
         ]
 
@@ -470,8 +630,6 @@ def recommend(
     scored: List[dict] = []
 
     for activity in candidates:
-        activity_stats = activity_stats_map.get(activity.id, {})
-
         exposure = activity_air_quality_exposure(activity)
 
         if sensitive_to_air_quality:
@@ -487,6 +645,26 @@ def recommend(
                 int((window_end - window_start).total_seconds() / 3600),
             )
 
+            aq = aggregate_air_quality_window(
+                air_quality_points,
+                start=window_start,
+                horizon_hours=window_hours,
+            )
+
+            aq_european_aqi = float(aq.european_aqi or 0.0)
+            uv_index = float(aq.uv_index or 0.0)
+            ozone = float(aq.ozone or 0.0)
+
+            weather_condition = classify_weather_condition(
+                temp_c=window.temp_c,
+                precip_prob=window.precip_prob,
+                wind_kmh=window.wind_kmh,
+                uv_index=uv_index,
+                air_quality_score=aq_european_aqi,
+            )
+            
+            activity_stats = stats_for_condition(weather_condition).get(activity.id, {})
+            
             features = build_features(
                 user_pref=cat_pref,
                 user_tag_pref=tag_pref,
@@ -497,6 +675,11 @@ def recommend(
                 weather_precip_prob=window.precip_prob,
                 weather_wind_kmh=window.wind_kmh,
                 weather_is_day=window.is_day,
+                apparent_temp_c=window.apparent_temp_c,
+                uv_index=uv_index,
+                air_quality_score=aq_european_aqi,
+                ozone=ozone,
+                alert_severity=alert_context.severity,
                 now=window_start,
                 user_stats=user_stats,
                 activity_stats=activity_stats,
@@ -504,12 +687,6 @@ def recommend(
 
             features = ensure_feature_contract(features)
             base_score = model.score(features)
-
-            aq = aggregate_air_quality_window(
-                air_quality_points,
-                start=window_start,
-                horizon_hours=window_hours,
-            )
 
             air_quality_penalty = exposure * aq.score * 0.45
 
@@ -536,11 +713,13 @@ def recommend(
                     "ends_at": window_end,
                     "air_quality_penalty": air_quality_penalty,
                     "alert_penalty": alert_penalty,
+                    "weather_condition": weather_condition,
                 }
             )
 
         now_window = window_scores[0]
         best_window = max(window_scores, key=lambda x: x["score"])
+        model_confidence = model.confidence_from_score(best_window["base_score"])
 
         best_weather: WeatherSlice = best_window["weather"]
         best_aq: AirQualityWindow = best_window["air_quality"]
@@ -604,7 +783,6 @@ def recommend(
                 "best_end": best_window["ends_at"].isoformat() if best_window["ends_at"] else None,
                 "alert_severity": alert_context.severity,
                 "alert_meteors": list(alert_context.meteors),
-                "air_quality_score": float(best_aq.score),
                 "air_quality_pm2_5": best_aq.pm2_5,
                 "air_quality_pm10": best_aq.pm10,
                 "air_quality_no2": best_aq.nitrogen_dioxide,
@@ -615,12 +793,39 @@ def recommend(
                 "weather_precip_prob": best_features.get("weather_precip_prob", 0.0),
                 "weather_wind_kmh": best_features.get("weather_wind_kmh", 0.0),
                 "weather_is_day": best_features.get("weather_is_day", 1.0),
+                "activity_view_count": float(best_features.get("activity_view_count", 0.0)),
+                "apparent_temp_c": float(best_weather.apparent_temp_c),
+                "uv_index": float(best_aq.uv_index or 0.0),
+                "ozone": float(best_aq.ozone or 0.0),
+
+                "air_quality_score": float(best_aq.european_aqi or 0.0),
+                "air_quality_risk_score": float(best_aq.score),
+                "air_quality_label": best_aq.health_label,
+                "air_quality_advice": best_aq.health_advice,
+
+                "weather_condition": best_window.get("weather_condition", "unknown"),
+
+                "model_confidence": model_confidence,
+                "confidence_label": (
+                    "high" if model_confidence >= 0.65
+                    else "medium" if model_confidence >= 0.35
+                    else "low"
+                ),
+                "ranking_strategy": ranking_strategy,
+                "exploration_bucket": "exploit",
             }
         )
 
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    results = diversify(scored, limit=limit)
+    diverse_ranked = diversify(scored, limit=max(limit * 2, limit))
+    results = apply_exploration(
+        diverse_ranked,
+        limit=limit,
+        strategy=ranking_strategy,
+        user_id=user_id,
+        request_id=request_id,
+    )
 
     for rank, row in enumerate(results, start=1):
         row["position"] = rank

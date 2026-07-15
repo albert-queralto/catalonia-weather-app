@@ -175,6 +175,21 @@ export type ActivityOut = {
   created_at?: string;
   validated: boolean;
   rating?: number | null;
+
+  apparent_temp_c?: number | null;
+  uv_index?: number | null;
+  ozone?: number | null;
+
+  air_quality_label?: string | null;
+  air_quality_advice?: string | null;
+  air_quality_risk_score?: number | null;
+
+  weather_condition?: string | null;
+
+  model_confidence?: number | null;
+  confidence_label?: "low" | "medium" | "high" | null;
+  ranking_strategy?: string | null;
+  exploration_bucket?: "exploit" | "explore" | null;
 };
 
 export type EventIn = {
@@ -193,6 +208,21 @@ export type EventIn = {
   weather_wind_kmh?: number | null;
   weather_is_day?: number | null;
   rating?: number | null;
+
+  apparent_temp_c?: number | null;
+  uv_index?: number | null;
+  air_quality_score?: number | null;
+  air_quality_label?: string | null;
+  ozone?: number | null;
+  alert_severity?: number | null;
+  weather_condition?: string | null;
+
+  ranking_strategy?: string | null;
+  model_score?: number | null;
+  model_confidence?: number | null;
+  exploration_bucket?: string | null;
+
+  dismiss_reason?: string | null;
 };
 
 

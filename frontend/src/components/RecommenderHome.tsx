@@ -192,7 +192,8 @@ function formatBestWindow(activity: ActivityOut) {
   async function sendEvent(
     activity: ActivityOut,
     event_type: "click" | "save" | "complete" | "dismiss" | "rate",
-    rating?: number
+    rating?: number,
+    dismiss_reason?: string
   ) {
     if (!token || !user) return;
     try {
@@ -208,6 +209,20 @@ function formatBestWindow(activity: ActivityOut) {
         weather_wind_kmh: activity.weather_wind_kmh ?? null,
         weather_is_day: activity.weather_is_day ?? null,
         rating,
+        apparent_temp_c: activity.apparent_temp_c ?? null,
+        uv_index: activity.uv_index ?? activity.air_quality_uv_index ?? null,
+        air_quality_score: activity.air_quality_score ?? null,
+        air_quality_label: activity.air_quality_label ?? null,
+        ozone: activity.ozone ?? activity.air_quality_ozone ?? null,
+        alert_severity: activity.alert_severity ?? null,
+        weather_condition: activity.weather_condition ?? null,
+
+        ranking_strategy: activity.ranking_strategy ?? null,
+        model_score: activity.base_score ?? null,
+        model_confidence: activity.model_confidence ?? null,
+        exploration_bucket: activity.exploration_bucket ?? null,
+
+        dismiss_reason: dismiss_reason ?? null,
       });
       setStatus(
         event_type === "rate"
@@ -361,6 +376,32 @@ function formatBestWindow(activity: ActivityOut) {
 
                   <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
                     {r.reason}
+                  </div>
+
+                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <Button size="small" onClick={() => sendEvent(r, "click")}>
+                      View
+                    </Button>
+
+                    <Button size="small" onClick={() => sendEvent(r, "save")}>
+                      Save
+                    </Button>
+
+                    <Button size="small" onClick={() => sendEvent(r, "complete")}>
+                      Completed
+                    </Button>
+
+                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "bad_weather")}>
+                      Bad weather
+                    </Button>
+
+                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "not_interested")}>
+                      Not interested
+                    </Button>
+
+                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "too_far")}>
+                      Too far
+                    </Button>
                   </div>
                 </div>
               ))}

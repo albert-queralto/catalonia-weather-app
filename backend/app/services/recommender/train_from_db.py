@@ -15,6 +15,10 @@ from app.services.recommender.feature_contract import (
 from app.services.recommender.features import (
     compute_tag_overlap,
     compute_weather_penalties,
+    estimate_transport_time_min,
+    season_from_month,
+    is_ozone_season,
+    compute_ozone_penalty,
 )
 
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -44,14 +48,26 @@ def main():
     impressions = pd.read_sql(
         f"""
         SELECT
-          e.id as impression_id,
-          e.user_id::text,
-          e.activity_id::text,
-          e.ts as impression_ts,
-          e.request_id::text,
-          e.position,
-          e.user_lat, e.user_lon,
-          e.weather_temp_c, e.weather_precip_prob, e.weather_wind_kmh, e.weather_is_day
+            e.id as impression_id,
+            e.user_id::text,
+            e.activity_id::text,
+            e.ts as impression_ts,
+            e.request_id::text,
+            e.position,
+            e.user_lat, e.user_lon,
+            e.weather_temp_c, e.weather_precip_prob, e.weather_wind_kmh, e.weather_is_day,
+            e.apparent_temp_c,
+            e.uv_index,
+            e.air_quality_score,
+            e.ozone,
+            e.alert_severity,
+            e.weather_condition,
+            e.ranking_strategy,
+            e.model_score,
+            e.model_confidence,
+            e.exploration_bucket,
+            e.dismiss_reason,
+            e.rating
         FROM events e
         WHERE e.event_type='view'
           AND e.ts >= now() - interval '{lookback_days} days'
@@ -151,6 +167,18 @@ def main():
             "weather_precip_prob": "first",
             "weather_wind_kmh": "first",
             "weather_is_day": "first",
+            "apparent_temp_c": "first",
+            "uv_index": "first",
+            "air_quality_score": "first",
+            "ozone": "first",
+            "alert_severity": "first",
+            "weather_condition": "first",
+            "ranking_strategy": "first",
+            "model_score": "first",
+            "model_confidence": "first",
+            "exploration_bucket": "first",
+            "dismiss_reason": "first",
+            "rating": "first",
             "is_pos": "max",
         })
         .rename(columns={"is_pos": "label"})
@@ -196,7 +224,18 @@ def main():
     df['activity_view_count'] = df['activity_view_count'].fillna(0)
     df['activity_avg_rating'] = df['activity_avg_rating'].fillna(2.5)
     df['activity_engagement_count'] = df['activity_engagement_count'].fillna(0)
-    
+    df["apparent_temp_c"] = df["apparent_temp_c"].fillna(df["weather_temp_c"])
+    df["uv_index"] = df["uv_index"].fillna(0.0)
+    df["air_quality_score"] = df["air_quality_score"].fillna(0.0)
+    df["ozone"] = df["ozone"].fillna(0.0)
+    df["alert_severity"] = df["alert_severity"].fillna(0.0)
+    df["weather_condition"] = df["weather_condition"].fillna("unknown")
+    df["ranking_strategy"] = df["ranking_strategy"].fillna("default")
+    df["model_score"] = df["model_score"].fillna(0.0)
+    df["model_confidence"] = df["model_confidence"].fillna(0.0)
+    df["exploration_bucket"] = df["exploration_bucket"].fillna("default")
+    df["dismiss_reason"] = df["dismiss_reason"].fillna("unknown")
+
     # Derived features
     df['activity_engagement_rate'] = df['activity_engagement_count'] / (df['activity_view_count'] + 1)
     df['user_exploration_rate'] = df['unique_activities'] / (df['total_events'] + 1)
@@ -212,7 +251,36 @@ def main():
     
     df['activity_engagement_rate'] = df['activity_engagement_count'] / (df['activity_view_count'] + 1)
     df['user_exploration_rate'] = df['unique_activities'] / (df['total_events'] + 1)
+
+    df["month"] = df["impression_ts"].dt.month
+    df["season"] = df["month"].apply(lambda m: season_from_month(int(m)))
+    df["is_evening"] = df["impression_ts"].dt.hour.between(18, 23).astype(float)
+    df["is_school_holiday"] = 0.0
+    df["is_open_now"] = 1.0
+
+    df["user_avg_completed_duration"] = df.get("user_avg_completed_duration", 60.0)
+    df["user_bad_weather_dismiss_rate"] = df.get("user_bad_weather_dismiss_rate", 0.0)
+
+    df["ozone_season"] = df["month"].apply(lambda m: 1.0 if is_ozone_season(int(m)) else 0.0)
+
+    df["ozone_penalty"] = df.apply(
+        lambda row: compute_ozone_penalty(
+            indoor=bool(row["indoor"]),
+            ozone=float(row["ozone"] or 0.0),
+            month=int(row["month"]),
+            hour=int(row["impression_ts"].hour),
+        ),
+        axis=1,
+    )
     
+    # Some runtime features may not be available in historical training data yet.
+    # Create missing feature columns with safe defaults before selecting FEATURE_COLUMNS.
+    if "activity_weather_view_count" not in df.columns:
+        df["activity_weather_view_count"] = 0.0
+
+    if "activity_weather_engagement_rate" not in df.columns:
+        df["activity_weather_engagement_rate"] = 0.0
+        
     prefs = pd.read_sql(
         """
         SELECT user_id::text, category, weight
@@ -242,6 +310,9 @@ def main():
         user_tag_pref_map.setdefault(row.user_id, {})[row.tag] = float(row.cnt)
     
     df["distance_km"] = haversine_km(df["user_lat"], df["user_lon"], df["lat"], df["lon"])
+    df["transport_time_min"] = df["distance_km"].apply(
+        lambda d: estimate_transport_time_min(float(d), "walking")
+    )
 
     def get_cat_weight(row) -> float:
         uid = row["user_id"]
@@ -267,23 +338,26 @@ def main():
     df["price_level_f"] = df["price_level"].astype(float)
     df["difficulty_f"] = df["difficulty"].astype(float)
     df["duration_minutes_f"] = df["duration_minutes"].astype(float)
+    
+    df["outdoor_aq_risk"] = (1.0 - df["indoor_f"]) * df["air_quality_score"]
+    df["outdoor_uv_risk"] = (1.0 - df["indoor_f"]) * df["uv_index"]
+    df["outdoor_alert_risk"] = (1.0 - df["indoor_f"]) * df["alert_severity"]
 
     # Weather-derived penalties for outdoor activities
     penalties = df.apply(
         lambda row: compute_weather_penalties(
-            indoor=row['indoor'],
-            covered=row['covered'],
-            weather_temp_c=row['weather_temp_c'],
-            weather_precip_prob=row['weather_precip_prob'],
-            weather_wind_kmh=row['weather_wind_kmh'],
-            weather_is_day=row['weather_is_day'],
+            indoor=row["indoor"],
+            covered=row["covered"],
+            weather_temp_c=row["weather_temp_c"],
+            weather_precip_prob=row["weather_precip_prob"],
+            weather_wind_kmh=row["weather_wind_kmh"],
         ),
         axis=1,
     )
-    df['precip_penalty'] = penalties.apply(lambda x: x['precip_penalty'])
-    df['wind_penalty'] = penalties.apply(lambda x: x['wind_penalty'])
-    df['cold_penalty'] = penalties.apply(lambda x: x['cold_penalty'])
-    df['heat_penalty'] = penalties.apply(lambda x: x['heat_penalty'])
+    df["precip_penalty"] = penalties.apply(lambda x: x.precip_penalty)
+    df['wind_penalty'] = penalties.apply(lambda x: x.wind_penalty)
+    df['cold_penalty'] = penalties.apply(lambda x: x.cold_penalty)
+    df['heat_penalty'] = penalties.apply(lambda x: x.heat_penalty)
     
     df['hour_of_day'] = df['impression_ts'].dt.hour
     df['day_of_week'] = df['impression_ts'].dt.dayofweek
@@ -293,6 +367,27 @@ def main():
     df['price_distance_interaction'] = df['price_level_f'] * df['distance_km']
     df['cat_weight_distance'] = df['cat_weight'] * df['distance_km']
     df['indoor_precip'] = df['indoor_f'] * df['weather_precip_prob']
+
+    # Row-level explicit rating is optional.
+    # Keep missing values as NaN so implicit labels still work.
+    if "rating" not in df.columns:
+        rating_candidates = [
+            c for c in df.columns
+            if c in ("rating_x", "rating_y") or c.startswith("rating_")
+        ]
+
+        if rating_candidates:
+            rating_values = df[rating_candidates].apply(
+                lambda col: pd.to_numeric(col, errors="coerce")
+            )
+            df["rating"] = rating_values.bfill(axis=1).iloc[:, 0]
+        else:
+            df["rating"] = np.nan
+    else:
+        df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+
+    if "label" not in df.columns:
+        df["label"] = 0
 
     # Ensure no nulls
     X = df[FEATURE_COLUMNS].fillna(0.0)

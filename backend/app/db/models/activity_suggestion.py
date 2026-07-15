@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     ARRAY,
     ForeignKey,
+    JSON,
 )
 from app.db.base import Base
 
@@ -30,6 +31,7 @@ class ActivitySuggestion(Base):
     location = Column(Geography(geometry_type="POINT", srid=4326), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     validated = Column(Boolean, default=False)
+    opening_hours = Column(JSON, nullable=True)
     
     
 class Event(Base):
@@ -52,3 +54,18 @@ class Event(Base):
     weather_is_day = Column(Float, nullable=True)
     
     rating = Column(Integer, nullable=True)  # For explicit user ratings (e.g. 1-5 stars)
+
+    apparent_temp_c = Column(Float, nullable=True)
+    uv_index = Column(Float, nullable=True)
+    air_quality_score = Column(Float, nullable=True)
+    air_quality_label = Column(String, nullable=True)
+    ozone = Column(Float, nullable=True)
+    alert_severity = Column(Integer, nullable=True)
+    weather_condition = Column(String, nullable=True)
+
+    ranking_strategy = Column(String, nullable=True)
+    model_score = Column(Float, nullable=True)
+    model_confidence = Column(Float, nullable=True)
+    exploration_bucket = Column(String, nullable=True)
+
+    dismiss_reason = Column(String, nullable=True)

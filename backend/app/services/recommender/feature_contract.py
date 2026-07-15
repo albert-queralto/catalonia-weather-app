@@ -53,6 +53,33 @@ FEATURE_COLUMNS = [
     "activity_avg_rating",
     "activity_engagement_count",
     "activity_engagement_rate",
+    
+    "apparent_temp_c",
+    "uv_index",
+    "air_quality_score",
+    "ozone",
+    "alert_severity",
+
+    "is_open_now",
+    "transport_time_min",
+
+    "month",
+    "season",
+    "is_evening",
+    "is_school_holiday",
+
+    "user_avg_completed_duration",
+    "user_bad_weather_dismiss_rate",
+
+    "activity_weather_view_count",
+    "activity_weather_engagement_rate",
+
+    "ozone_season",
+    "ozone_penalty",
+    
+    "outdoor_aq_risk",
+    "outdoor_uv_risk",
+    "outdoor_alert_risk",
 ]
 
 DEFAULT_FEATURE_VALUES = {
@@ -97,6 +124,33 @@ DEFAULT_FEATURE_VALUES = {
     "activity_avg_rating": 2.5,
     "activity_engagement_count": 0.0,
     "activity_engagement_rate": 0.0,
+    
+    "apparent_temp_c": 0.0,
+    "uv_index": 0.0,
+    "air_quality_score": 0.0,
+    "ozone": 0.0,
+    "alert_severity": 0.0,
+
+    "is_open_now": 1.0,
+    "transport_time_min": 0.0,
+
+    "month": 1.0,
+    "season": 0.0,
+    "is_evening": 0.0,
+    "is_school_holiday": 0.0,
+
+    "user_avg_completed_duration": 60.0,
+    "user_bad_weather_dismiss_rate": 0.0,
+
+    "activity_weather_view_count": 0.0,
+    "activity_weather_engagement_rate": 0.0,
+
+    "ozone_season": 0.0,
+    "ozone_penalty": 0.0,
+    
+    "outdoor_aq_risk": 0.0,
+    "outdoor_uv_risk": 0.0,
+    "outdoor_alert_risk": 0.0,
 }
 
 

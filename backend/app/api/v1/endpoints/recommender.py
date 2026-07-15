@@ -8,7 +8,6 @@ from sqlalchemy import text
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from app.services.recommender import fetch_weather_slice
 from app.core.config import settings
 from app.services.user.auth import get_current_user, require_role
 from app.db.session import get_session
@@ -25,6 +24,8 @@ from app.services.recommender.service import (
     build_scoring_windows,
     recommend,
 )
+from app.services.recommender.service import aggregate_air_quality_window
+from app.services.recommender.features import is_ozone_season
 
 router = APIRouter(tags=["recommender"])
 
@@ -49,7 +50,18 @@ def _hydrate_context_from_view(ev: EventIn, db: Session, user: User) -> Optional
                 weather_temp_c,
                 weather_precip_prob,
                 weather_wind_kmh,
-                weather_is_day
+                weather_is_day,
+                apparent_temp_c,
+                uv_index,
+                air_quality_score,
+                air_quality_label,
+                ozone,
+                alert_severity,
+                weather_condition,
+                ranking_strategy,
+                model_score,
+                model_confidence,
+                exploration_bucket
             FROM events
             WHERE user_id = :uid
                 AND request_id = :rid
@@ -77,6 +89,17 @@ def _hydrate_context_from_view(ev: EventIn, db: Session, user: User) -> Optional
         "weather_precip_prob": row[4],
         "weather_wind_kmh": row[5],
         "weather_is_day": row[6],
+        "apparent_temp_c": row[7],
+        "uv_index": row[8],
+        "air_quality_score": row[9],
+        "air_quality_label": row[10],
+        "ozone": row[11],
+        "alert_severity": row[12],
+        "weather_condition": row[13],
+        "ranking_strategy": row[14],
+        "model_score": row[15],
+        "model_confidence": row[16],
+        "exploration_bucket": row[17],
     }
 
 
@@ -208,6 +231,20 @@ def log_event(
     weather_wind_kmh = ev.weather_wind_kmh if ev.weather_wind_kmh is not None else context.get("weather_wind_kmh")
     weather_is_day = ev.weather_is_day if ev.weather_is_day is not None else context.get("weather_is_day")
 
+    apparent_temp_c = ev.apparent_temp_c if ev.apparent_temp_c is not None else context.get("apparent_temp_c")
+    uv_index = ev.uv_index if ev.uv_index is not None else context.get("uv_index")
+    air_quality_score = ev.air_quality_score if ev.air_quality_score is not None else context.get("air_quality_score")
+    air_quality_label = ev.air_quality_label if ev.air_quality_label is not None else context.get("air_quality_label")
+    ozone = ev.ozone if ev.ozone is not None else context.get("ozone")
+    alert_severity = ev.alert_severity if ev.alert_severity is not None else context.get("alert_severity")
+    weather_condition = ev.weather_condition if ev.weather_condition is not None else context.get("weather_condition")
+
+    ranking_strategy = ev.ranking_strategy if ev.ranking_strategy is not None else context.get("ranking_strategy")
+    model_score = ev.model_score if ev.model_score is not None else context.get("model_score")
+    model_confidence = ev.model_confidence if ev.model_confidence is not None else context.get("model_confidence")
+    exploration_bucket = ev.exploration_bucket if ev.exploration_bucket is not None else context.get("exploration_bucket")
+    dismiss_reason = ev.dismiss_reason if ev.dismiss_reason is not None else context.get("dismiss_reason")
+
     # Absolute fallback for old clients that do not send the served weather snapshot
     if (
         user_lat is not None
@@ -233,14 +270,20 @@ def log_event(
           request_id, position,
           user_lat, user_lon,
           weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day,
-          rating
+          rating, apparent_temp_c, uv_index, air_quality_score, air_quality_label, ozone,
+          alert_severity, weather_condition,
+          ranking_strategy, model_score, model_confidence, exploration_bucket,
+          dismiss_reason
         )
         VALUES (
           :id, :u, :a, :t, COALESCE(:ts, now()),
           :rid, :pos,
           :lat, :lon,
           :temp, :pp, :wind, :day,
-          :rating
+          :rating, :apparent_temp_c, :uv_index, :air_quality_score, :air_quality_label, :ozone,
+          :alert_severity, :weather_condition,
+          :ranking_strategy, :model_score, :model_confidence, :exploration_bucket,
+          :dismiss_reason
         )
         """),
         {
@@ -258,6 +301,18 @@ def log_event(
             "wind": weather_wind_kmh,
             "day": weather_is_day,
             "rating": ev.rating,
+            "apparent_temp_c": apparent_temp_c,
+            "uv_index": uv_index,
+            "air_quality_score": air_quality_score,
+            "air_quality_label": air_quality_label,
+            "ozone": ozone,
+            "alert_severity": alert_severity,
+            "weather_condition": weather_condition,
+            "ranking_strategy": ranking_strategy,
+            "model_score": model_score,
+            "model_confidence": model_confidence,
+            "exploration_bucket": exploration_bucket,
+            "dismiss_reason": dismiss_reason,
         }
     )
     db.commit()
@@ -309,6 +364,7 @@ async def get_recommendations(
         lon=lon,
         radius_km=radius_km,
         limit=limit,
+        request_id=request_id,
         weather_windows=weather_windows,
         air_quality_points=air_quality_points,
         alert_context=alert_context,
@@ -323,13 +379,43 @@ async def get_recommendations(
                     id, user_id, activity_id, event_type, ts,
                     request_id, position,
                     user_lat, user_lon,
-                    weather_temp_c, weather_precip_prob, weather_wind_kmh, weather_is_day, rating
+                    weather_temp_c,
+                    apparent_temp_c,
+                    weather_precip_prob,
+                    weather_wind_kmh,
+                    weather_is_day,
+                    uv_index,
+                    air_quality_score,
+                    air_quality_label,
+                    ozone,
+                    alert_severity,
+                    weather_condition,
+                    ranking_strategy,
+                    model_score,
+                    model_confidence,
+                    exploration_bucket,
+                    rating
                 )
                 VALUES (
                     :id, :u, :a, 'view', now(),
                     :rid, :pos,
                     :lat, :lon,
-                    :t, :pp, :w, :day, NULL
+                    :t,
+                    :apparent_t,
+                    :pp,
+                    :w,
+                    :day,
+                    :uv,
+                    :aq_score,
+                    :aq_label,
+                    :ozone,
+                    :alert_severity,
+                    :weather_condition,
+                    :ranking_strategy,
+                    :model_score,
+                    :model_confidence,
+                    :exploration_bucket,
+                    NULL
                 )
                 """
             ),
@@ -341,10 +427,24 @@ async def get_recommendations(
                 "pos": idx,
                 "lat": float(lat),
                 "lon": float(lon),
+
                 "t": float(r.get("weather_temp_c") or 0.0),
+                "apparent_t": float(r.get("apparent_temp_c") or r.get("weather_temp_c") or 0.0),
                 "pp": float(r.get("weather_precip_prob") or 0.0),
                 "w": float(r.get("weather_wind_kmh") or 0.0),
                 "day": float(r.get("weather_is_day") or 1.0),
+
+                "uv": float(r.get("uv_index") or r.get("air_quality_uv_index") or 0.0),
+                "aq_score": float(r.get("air_quality_score") or 0.0),
+                "aq_label": r.get("air_quality_label"),
+                "ozone": float(r.get("ozone") or r.get("air_quality_ozone") or 0.0),
+                "alert_severity": int(r.get("alert_severity") or 0),
+                "weather_condition": r.get("weather_condition"),
+
+                "ranking_strategy": r.get("ranking_strategy"),
+                "model_score": float(r.get("base_score") or 0.0),
+                "model_confidence": float(r.get("model_confidence") or 0.0),
+                "exploration_bucket": r.get("exploration_bucket"),
             },
         )
 
@@ -355,6 +455,84 @@ async def get_recommendations(
         r["position"] = idx
 
     return recs
+
+
+@router.get("/safe-outdoor-window")
+async def safe_outdoor_window(
+    lat: float,
+    lon: float,
+    hours: int = Query(48, ge=6, le=72),
+    sensitive_to_air_quality: bool = False,
+):
+    weather_points = await fetch_weather_timeline(
+        lat,
+        lon,
+        planning_hours=hours,
+    )
+
+    try:
+        air_quality_points = await air_quality_service.get_air_quality_hourly(lat, lon)
+    except Exception:
+        air_quality_points = []
+
+    rows = []
+
+    for w in weather_points:
+        aq = aggregate_air_quality_window(
+            air_quality_points,
+            start=w.time,
+            horizon_hours=1,
+        )
+
+        reasons = []
+
+        aq_threshold = 40 if sensitive_to_air_quality else 60
+        aq_european = float(aq.european_aqi or 0.0)
+        uv = float(aq.uv_index or 0.0)
+        ozone = float(aq.ozone or 0.0)
+
+        if w.precip_prob >= 40:
+            reasons.append("rain risk")
+
+        if w.wind_kmh >= 35:
+            reasons.append("strong wind")
+
+        if w.apparent_temp_c <= 5 or w.apparent_temp_c >= 32:
+            reasons.append("uncomfortable apparent temperature")
+
+        if aq_european >= aq_threshold:
+            reasons.append("air quality")
+
+        if uv >= 8:
+            reasons.append("very high UV")
+
+        if is_ozone_season(w.time.month) and ozone >= 130 and 11 <= w.time.hour <= 18:
+            reasons.append("elevated ozone")
+
+        rows.append(
+            {
+                "time": w.time.isoformat(),
+                "safe": len(reasons) == 0,
+                "reasons": reasons,
+                "temperature_c": w.temp_c,
+                "apparent_temp_c": w.apparent_temp_c,
+                "precip_prob": w.precip_prob,
+                "wind_kmh": w.wind_kmh,
+                "air_quality_score": aq_european,
+                "air_quality_label": aq.health_label,
+                "air_quality_advice": aq.health_advice,
+                "uv_index": uv,
+                "ozone": ozone,
+            }
+        )
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "hours": hours,
+        "windows": rows,
+    }
+
 
 @router.post("/model/reload")
 def reload_model(admin: User = Depends(require_role("admin"))):

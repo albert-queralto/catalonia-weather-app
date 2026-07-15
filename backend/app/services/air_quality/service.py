@@ -48,6 +48,12 @@ class AirQualityService:
             sulphur_dioxide=row["sulphur_dioxide"],
             ozone=row["ozone"],
             uv_index=row["uv_index"],
+            european_aqi=row["european_aqi"],
+            european_aqi_pm2_5=row["european_aqi_pm2_5"],
+            european_aqi_pm10=row["european_aqi_pm10"],
+            european_aqi_nitrogen_dioxide=row["european_aqi_nitrogen_dioxide"],
+            european_aqi_ozone=row["european_aqi_ozone"],
+            european_aqi_sulphur_dioxide=row["european_aqi_sulphur_dioxide"],
         )
 
         payload = AirQualityResponse(
@@ -66,8 +72,20 @@ class AirQualityService:
             "latitude": lat,
             "longitude": lon,
             "hourly": [
-                "pm2_5", "pm10", "carbon_monoxide", "carbon_dioxide",
-                "nitrogen_dioxide", "sulphur_dioxide", "ozone", "uv_index",
+                "pm2_5",
+                "pm10",
+                "carbon_monoxide",
+                "carbon_dioxide",
+                "nitrogen_dioxide",
+                "sulphur_dioxide",
+                "ozone",
+                "uv_index",
+                "european_aqi",
+                "european_aqi_pm2_5",
+                "european_aqi_pm10",
+                "european_aqi_nitrogen_dioxide",
+                "european_aqi_ozone",
+                "european_aqi_sulphur_dioxide",
             ],
         }
         responses = self.openmeteo.weather_api(url, params=params)
@@ -81,6 +99,12 @@ class AirQualityService:
         hourly_sulphur_dioxide = hourly.Variables(5).ValuesAsNumpy()
         hourly_ozone = hourly.Variables(6).ValuesAsNumpy()
         hourly_uv_index = hourly.Variables(7).ValuesAsNumpy()
+        hourly_european_aqi = hourly.Variables(8).ValuesAsNumpy()
+        hourly_european_aqi_pm2_5 = hourly.Variables(9).ValuesAsNumpy()
+        hourly_european_aqi_pm10 = hourly.Variables(10).ValuesAsNumpy()
+        hourly_european_aqi_nitrogen_dioxide = hourly.Variables(11).ValuesAsNumpy()
+        hourly_european_aqi_ozone = hourly.Variables(12).ValuesAsNumpy()
+        hourly_european_aqi_sulphur_dioxide = hourly.Variables(13).ValuesAsNumpy()
 
         hourly_data = {"date": pd.date_range(
             start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
@@ -96,7 +120,13 @@ class AirQualityService:
         hourly_data["sulphur_dioxide"] = hourly_sulphur_dioxide
         hourly_data["ozone"] = hourly_ozone
         hourly_data["uv_index"] = hourly_uv_index
-
+        hourly_data["european_aqi"] = hourly_european_aqi
+        hourly_data["european_aqi_pm2_5"] = hourly_european_aqi_pm2_5
+        hourly_data["european_aqi_pm10"] = hourly_european_aqi_pm10
+        hourly_data["european_aqi_nitrogen_dioxide"] = hourly_european_aqi_nitrogen_dioxide
+        hourly_data["european_aqi_ozone"] = hourly_european_aqi_ozone
+        hourly_data["european_aqi_sulphur_dioxide"] = hourly_european_aqi_sulphur_dioxide
+        
         hourly_dataframe = pd.DataFrame(data=hourly_data)
         hourly_dataframe = hourly_dataframe.replace({np.nan: None, np.inf: None, -np.inf: None})
 
@@ -126,6 +156,12 @@ class AirQualityService:
                 sulphur_dioxide=row["sulphur_dioxide"],
                 ozone=row["ozone"],
                 uv_index=row["uv_index"],
+                european_aqi=row["european_aqi"],
+                european_aqi_pm2_5=row["european_aqi_pm2_5"],
+                european_aqi_pm10=row["european_aqi_pm10"],
+                european_aqi_nitrogen_dioxide=row["european_aqi_nitrogen_dioxide"],
+                european_aqi_ozone=row["european_aqi_ozone"],
+                european_aqi_sulphur_dioxide=row["european_aqi_sulphur_dioxide"],
             ))
         # Cache as list of dicts
         await cache.set_json(cache_key, [p.model_dump(mode="json") for p in points], ttl_seconds=60 * 30)

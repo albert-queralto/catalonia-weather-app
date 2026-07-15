@@ -41,6 +41,21 @@ class EventIn(BaseModel):
     weather_is_day: Optional[float] = None
     
     rating: Optional[int] = None  # For explicit user ratings (e.g. 1-5 stars)
+    
+    apparent_temp_c: Optional[float] = None
+    uv_index: Optional[float] = None
+    air_quality_score: Optional[float] = None
+    air_quality_label: Optional[str] = None
+    ozone: Optional[float] = None
+    alert_severity: Optional[int] = None
+    weather_condition: Optional[str] = None
+
+    ranking_strategy: Optional[str] = None
+    model_score: Optional[float] = None
+    model_confidence: Optional[float] = None
+    exploration_bucket: Optional[str] = None
+
+    dismiss_reason: Optional[str] = None
 
 
 class ActivityOut(BaseModel):
@@ -92,3 +107,18 @@ class ActivityOut(BaseModel):
     weather_wind_kmh: Optional[float] = None
     weather_is_day: Optional[float] = None
     rating: Optional[int] = None  # For explicit user ratings (e.g. 1-5 stars)
+    
+    apparent_temp_c: Optional[float] = None
+    uv_index: Optional[float] = None
+    ozone: Optional[float] = None
+
+    air_quality_label: Optional[str] = None
+    air_quality_advice: Optional[str] = None
+    air_quality_risk_score: Optional[float] = None
+
+    weather_condition: Optional[str] = None
+
+    model_confidence: Optional[float] = None
+    confidence_label: Optional[str] = None
+    ranking_strategy: Optional[str] = None
+    exploration_bucket: Optional[str] = None

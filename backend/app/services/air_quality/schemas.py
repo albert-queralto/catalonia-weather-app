@@ -16,6 +16,17 @@ class AirQualityPoint(BaseModel):
     sulphur_dioxide: Optional[float] = None
     ozone: Optional[float] = None
     uv_index: Optional[float] = None
+    
+    european_aqi: Optional[float] = None
+    european_aqi_pm2_5: Optional[float] = None
+    european_aqi_pm10: Optional[float] = None
+    european_aqi_nitrogen_dioxide: Optional[float] = None
+    european_aqi_ozone: Optional[float] = None
+    european_aqi_sulphur_dioxide: Optional[float] = None
+
+    health_label: Optional[str] = None
+    health_advice: Optional[str] = None
+    dominant_pollutant: Optional[str] = None
 
 
 class AirQualityResponse(BaseModel):
