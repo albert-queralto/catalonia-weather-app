@@ -1,9 +1,9 @@
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api'
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
 
 export type ApiError = { status: number; message: string };
 
 export async function getJSON<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-  const url = new URL(API_BASE + path)
+  const url = new URL(API_BASE + path, window.location.origin)
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
