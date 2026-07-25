@@ -1,6 +1,10 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import MenuIcon from "@mui/icons-material/Menu";
+import "./Navbar.css";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -8,42 +12,25 @@ export default function Navbar() {
   const location = useLocation();
   const [adminOpen, setAdminOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setAdminOpen(false);
+    setActivityOpen(false);
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  function closeMenus() {
+    setAdminOpen(false);
+    setActivityOpen(false);
+    setMobileOpen(false);
+  }
 
   function onLogout() {
+    closeMenus();
     logout();
     nav("/login");
   }
-
-  const wrap: React.CSSProperties = {
-    display: "flex",
-    gap: 16,
-    alignItems: "center",
-    padding: "14px 24px",
-    borderBottom: "2px solid #1565c0",
-    background: "linear-gradient(90deg, #1976d2 0%, #1565c0 100%)",
-    color: "#fff",
-    fontFamily: "Segoe UI, Arial, sans-serif",
-    fontSize: 17,
-    minHeight: 56,
-    boxShadow: "0 2px 8px rgba(21,101,192,0.08)"
-  };
-
-  const linkStyle: React.CSSProperties = {
-    color: "#fff",
-    textDecoration: "none",
-    fontWeight: 500,
-    padding: "6px 12px",
-    borderRadius: 4,
-    transition: "background 0.2s",
-    display: "block"
-  };
-
-  const linkActiveStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.12)",
-  };
-
-  const spacer: React.CSSProperties = { flex: 1 };
 
   function navLink(to: string, label: string, key?: string) {
     const isActive = location.pathname === to;
@@ -51,50 +38,57 @@ export default function Navbar() {
       <Link
         key={key || to}
         to={to}
-        style={isActive ? { ...linkStyle, ...linkActiveStyle } : linkStyle}
-        onClick={() => {
-          setAdminOpen(false);
-          setActivityOpen(false);
-          setSuggestOpen(false);
-        }}
+        className={`navbar__link${isActive ? " navbar__link--active" : ""}`}
+        aria-current={isActive ? "page" : undefined}
+        onClick={closeMenus}
       >
         {label}
       </Link>
     );
   }
 
-  function dropdownMenu(label: string, open: boolean, setOpen: (v: boolean) => void, links: JSX.Element[]) {
+  function dropdownMenu(
+    label: string,
+    open: boolean,
+    menu: "activity" | "admin",
+    links: ReactElement[]
+  ) {
+    function toggleDropdown() {
+      if (menu === "activity") {
+        setActivityOpen(!activityOpen);
+        setAdminOpen(false);
+        return;
+      }
+
+      setAdminOpen(!adminOpen);
+      setActivityOpen(false);
+    }
+
     return (
-      <div style={{ position: "relative" }}>
+      <div className="navbar__dropdown">
         <button
-          style={{
-            background: "rgba(255,255,255,0.12)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            padding: "6px 14px",
-            fontWeight: 600,
-            cursor: "pointer",
-            minWidth: 140,
-          }}
-          onClick={() => setOpen(!open)}
+          type="button"
+          className={`navbar__dropdownButton${open ? " navbar__dropdownButton--open" : ""}`}
+          aria-expanded={open}
+          onClick={toggleDropdown}
         >
-          {label} ▼
+          <span>{label}</span>
+          <KeyboardArrowDownIcon
+            className={`navbar__chevron${open ? " navbar__chevron--open" : ""}`}
+            fontSize="small"
+          />
         </button>
         {open && (
           <div
-            style={{
-              position: "absolute",
-              top: "110%",
-              left: 0,
-              background: "#1976d2",
-              borderRadius: 6,
-              boxShadow: "0 2px 8px rgba(21,101,192,0.18)",
-              zIndex: 100,
-              minWidth: 200,
-              padding: "8px 0",
+            className="navbar__dropdownMenu"
+            onMouseLeave={() => {
+              if (menu === "activity") {
+                setActivityOpen(false);
+                return;
+              }
+
+              setAdminOpen(false);
             }}
-            onMouseLeave={() => setOpen(false)}
           >
             {links}
           </div>
@@ -104,76 +98,86 @@ export default function Navbar() {
   }
 
   return (
-    <div style={wrap}>
-      <b style={{ marginRight: 20, marginLeft: 50 }}>🌤️ Catalunya Weather Portal</b>
+    <nav className="navbar" aria-label="Main navigation">
+      <Link to={user ? "/home" : "/"} className="navbar__brand" onClick={closeMenus}>
+        <span className="navbar__brandIcon" aria-hidden="true">🌤️</span>
+        <span className="navbar__brandText">Catalunya Weather Portal</span>
+      </Link>
 
-      {user && (
-        <>
-          {dropdownMenu(
-            "Activity recommendations",
-            activityOpen,
-            setActivityOpen,
-            [
-              navLink("/", "Activity recommender", "activity-recommender"),
-              navLink("/suggest-activity", "Suggest activity", "suggest-activity"),
-            ]
-          )}
-          {navLink("/historical", "Station explorer", "station-explorer")}
-          {navLink("/historical-map", "Station map", "station-map")}
-          {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
-          {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
-          {navLink("/profile", "Profile", "profile")}
-          {/* Show Verify Email only if user is not verified */}
-          {user.is_verified === false && navLink("/verify-email", "Verify Email", "verify-email")}
+      <button
+        type="button"
+        className="navbar__toggle"
+        aria-controls="primary-navigation"
+        aria-expanded={mobileOpen}
+        aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
+        onClick={() => setMobileOpen(!mobileOpen)}
+      >
+        {mobileOpen ? <CloseIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
+      </button>
 
-          {user.role === "admin" && (
-            dropdownMenu(
-              "Admin Management",
-              adminOpen,
-              setAdminOpen,
+      <div
+        id="primary-navigation"
+        className={`navbar__menu${mobileOpen ? " navbar__menu--open" : ""}`}
+      >
+        {user && (
+          <div className="navbar__links">
+            {dropdownMenu(
+              "Activity recommendations",
+              activityOpen,
+              "activity",
               [
-                navLink("/activities", "Manage activities", "manage-activities"),
-                navLink("/manage-categories", "Manage categories", "manage-categories"),
-                navLink("/populate", "Populate data", "populate-data"),
-                navLink("/ml-model-trainer", "ML Trainer", "ml-model-trainer"),
-                navLink("/user-management", "User management", "user-management"),
-                navLink("/analytics", "Analytics dashboard", "analytics-dashboard"),
+                navLink("/home", "Activity recommender", "activity-recommender"),
+                navLink("/suggest-activity", "Suggest activity", "suggest-activity"),
               ]
-            )
+            )}
+            {navLink("/historical", "Station explorer", "station-explorer")}
+            {navLink("/historical-map", "Station map", "station-map")}
+            {navLink("/air-quality-map", "Air quality map", "air-quality-map")}
+            {navLink("/episodis-oberts", "Meteo alerts", "meteo-alerts")}
+            {navLink("/profile", "Profile", "profile")}
+            {/* Show Verify Email only if user is not verified */}
+            {user.is_verified === false && navLink("/verify-email", "Verify Email", "verify-email")}
+
+            {user.role === "admin" && (
+              dropdownMenu(
+                "Admin Management",
+                adminOpen,
+                "admin",
+                [
+                  navLink("/activities", "Manage activities", "manage-activities"),
+                  navLink("/manage-categories", "Manage categories", "manage-categories"),
+                  navLink("/populate", "Populate data", "populate-data"),
+                  navLink("/ml-model-trainer", "ML Trainer", "ml-model-trainer"),
+                  navLink("/user-management", "User management", "user-management"),
+                  navLink("/analytics", "Analytics dashboard", "analytics-dashboard"),
+                ]
+              )
+            )}
+          </div>
+        )}
+
+        <div className="navbar__spacer" />
+
+        <div className="navbar__account">
+          {!user ? (
+            <>
+              {navLink("/login", "Login")}
+              {navLink("/register", "Register")}
+              {/* Show password reset links only when not logged in */}
+              {navLink("/request-password-reset", "Request Password Reset", "request-password-reset")}
+            </>
+          ) : (
+            <>
+              <span className="navbar__user">
+                {user.email} ({user.role})
+              </span>
+              <button type="button" onClick={onLogout} className="navbar__logout">
+                Logout
+              </button>
+            </>
           )}
-        </>
-      )}
-
-      <div style={spacer} />
-
-      {!user ? (
-        <>
-          {navLink("/login", "Login")}
-          {navLink("/register", "Register")}
-          {/* Show password reset links only when not logged in */}
-          {navLink("/request-password-reset", "Request Password Reset", "request-password-reset")}
-        </>
-      ) : (
-        <>
-          <span style={{ opacity: 0.8 }}>
-            {user.email} ({user.role})
-          </span>
-          <button
-            onClick={onLogout}
-            style={{
-              background: "#fff",
-              color: "#1565c0",
-              border: "none",
-              borderRadius: 4,
-              padding: "6px 14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginLeft: 4,
-              transition: "background 0.2s",
-            }}
-          >Logout</button>
-        </>
-      )}
-    </div>
+        </div>
+      </div>
+    </nav>
   );
 }
