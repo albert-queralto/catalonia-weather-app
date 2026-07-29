@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ['catalonia-weather-app.albertqueralto.dev'],
     strictPort: true,
     proxy: {
       '/api': {
