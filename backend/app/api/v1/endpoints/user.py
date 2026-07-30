@@ -10,11 +10,9 @@ from app.services.user.schemas import (
     PasswordResetIn
 )
 from app.core.security import hash_password, decode_email_token, generate_email_token
+from app.core.config import settings
 from app.services.user.auth import get_current_user, require_role
 from uuid import UUID
-import secrets
-
-FRONTEND_URL = "http://localhost:5173"
 
 router = APIRouter(tags=["users"], prefix="/users")
 
@@ -116,7 +114,7 @@ def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depend
     token = generate_email_token(user.id, expires_minutes=60, token_type="password_reset")
     user.reset_token = token 
     db.commit()
-    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+    reset_url = f"{settings.frontend_base_url}/reset-password?token={token}"
     send_email(user.email, "Password Reset", f"Reset your password: {reset_url}")
     return {"message": "If the email exists, a reset link will be sent."}
 

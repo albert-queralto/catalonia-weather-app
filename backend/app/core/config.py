@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     api_base_path: str = Field(default="/api", alias="API_BASE_PATH")
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
+    frontend_url: AnyHttpUrl = Field(default="http://localhost:5173", alias="FRONTEND_URL")
 
     database_url: str = Field(
         default="postgresql+asyncpg://weather:weather@postgres:5432/weather", 
@@ -55,6 +56,10 @@ class Settings(BaseSettings):
         if not self.cors_origins:
             return []
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def frontend_base_url(self) -> str:
+        return str(self.frontend_url).rstrip("/")
 
 
 settings = Settings()

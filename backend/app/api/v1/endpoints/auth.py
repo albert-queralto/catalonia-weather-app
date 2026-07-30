@@ -8,6 +8,7 @@ from app.db.session import get_session
 from app.db.models import User
 from app.services.user.schemas import RegisterIn, TokenOut, MeOut
 from app.core.security import hash_password, verify_password, create_access_token, generate_email_token
+from app.core.config import settings
 from app.services.user.auth import get_current_user
 from app.services.user.email_utils import send_email
 
@@ -48,8 +49,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_session)):
     u.verification_token = token
     db.commit()
     
-    FRONTEND_URL = "http://localhost:5173"
-    verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+    verify_url = f"{settings.frontend_base_url}/verify-email?token={token}"
     send_email(u.email, "Verify your email", f"Click to verify: {verify_url}")
 
     return u
