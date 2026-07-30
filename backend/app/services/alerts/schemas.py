@@ -1,46 +1,48 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional
 
 class AvisAfectacio(BaseModel):
-    dia: str
-    llindar: Optional[str]
-    auxiliar: Optional[bool]
-    perill: Optional[int]
-    idComarca: Optional[int]
-    nivell: Optional[int]
+    dia: Optional[str] = None
+    llindar: Optional[str] = None
+    auxiliar: Optional[bool] = None
+    perill: Optional[int] = None
+    idComarca: Optional[int] = None
+    nivell: Optional[int] = None
 
 class Periode(BaseModel):
     nom: str
-    afectacions: Optional[List[AvisAfectacio]]
+    afectacions: Optional[List[AvisAfectacio]] = None
 
 class Evolucio(BaseModel):
     dia: str
-    comentari: Optional[str]
-    representatiu: Optional[int]
-    llindar1: Optional[str]
-    llindar2: Optional[str]
-    distribucioGeografica: Optional[str]
-    periodes: List[Periode]
+    comentari: Optional[str] = None
+    representatiu: Optional[int] = None
+    llindar1: Optional[str] = None
+    llindar2: Optional[str] = None
+    distribucioGeografica: Optional[str] = None
+    valorMaxim: Optional[str] = None
+    periodes: List[Periode] = Field(default_factory=list)
 
 class Avis(BaseModel):
     tipus: str
     dataEmisio: str
     dataInici: str
     dataFi: str
-    evolucions: List[Evolucio]
+    estat: Optional[str] = None
+    evolucions: List[Evolucio] = Field(default_factory=list)
 
 class Meteor(BaseModel):
     nom: str
 
 class Estat(BaseModel):
     nom: str
-    data: Optional[str]
+    data: Optional[str] = None
 
 class EpisodiObert(BaseModel):
     estat: Estat
     meteor: Meteor
-    avisos: List[Avis]
+    avisos: List[Avis] = Field(default_factory=list)
     
     
 class AlertComarcaOut(BaseModel):

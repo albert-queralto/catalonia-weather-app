@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -27,7 +28,20 @@ async def get_episodis_oberts(
     month: int = Query(..., ge=1, le=12, description="Month in MM format"),
     day: int = Query(..., ge=1, le=31, description="Day in DD format"),
 ):
-    return await alerts_service.get_episodis_oberts(year, month, day)
+    try:
+        return await alerts_service.get_episodis_oberts(year, month, day)
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        detail = exc.response.text or exc.response.reason_phrase
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Meteocat SMP API error: {detail}",
+        ) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Meteocat SMP API request failed: {exc}",
+        ) from exc
 
 
 def _lookup_comarca_code(db: Session, lat: float, lon: float) -> Optional[str]:

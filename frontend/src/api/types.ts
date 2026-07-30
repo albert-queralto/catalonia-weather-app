@@ -59,12 +59,12 @@ export type RadarTimestamps = {
 
 
 export interface AvisAfectacio {
-  dia: string;
+  dia: string | null;
   llindar: string | null;
-  auxiliar: boolean;
-  perill: number;
-  idComarca: number;
-  nivell: number;
+  auxiliar: boolean | null;
+  perill: number | null;
+  idComarca: number | null;
+  nivell: number | null;
 }
 
 export interface Periode {
@@ -75,10 +75,11 @@ export interface Periode {
 export interface Evolucio {
   dia: string;
   comentari: string | null;
-  representatiu: number;
+  representatiu: number | null;
   llindar1: string | null;
   llindar2: string | null;
   distribucioGeografica: string | null;
+  valorMaxim: string | null;
   periodes: Periode[];
 }
 
@@ -87,6 +88,7 @@ export interface Avis {
   dataEmisio: string;
   dataInici: string;
   dataFi: string;
+  estat: string | null;
   evolucions: Evolucio[];
 }
 
