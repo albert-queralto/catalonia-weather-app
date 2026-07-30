@@ -1,7 +1,12 @@
 import asyncio
+import os
+import subprocess
+import sys
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from app.core.config import settings
 from app.db.session import SessionLocal, get_session
 from app.db.models import MeteocatStation, StationMeasurement, User
 from app.workers.celery_app import celery_app
@@ -12,7 +17,10 @@ CATALONIA_TZ = ZoneInfo("Europe/Madrid")
 
 
 @celery_app.task
-def train_all_station_models():
+def train_all_station_models(
+    target_variable: str = "Precipitació",
+    model_name: str = "xgboost",
+):
     """
     Celery task to train and save machine learning models for all weather stations.
 
@@ -21,19 +29,40 @@ def train_all_station_models():
     """
     from app.services.ml.train import fetch_all_stations, train_and_save_model
 
-    stations = fetch_all_stations()
-    db = SessionLocal()
-    try:
+    trained = 0
+    skipped = 0
+    failures = []
+
+    with SessionLocal() as db:
+        stations = fetch_all_stations(db)
         for st in stations:
             station_code = st["codi"]
             date_from, date_to = get_station_date_range(station_code, db)
             if not date_from or not date_to:
+                skipped += 1
                 continue
-            train_and_save_model(
-                station_code, date_from, date_to, "Precipitació", "xgboost", db
-            )
-    finally:
-        db.close()
+
+            try:
+                train_and_save_model(
+                    station_code,
+                    date_from,
+                    date_to,
+                    target_variable,
+                    model_name,
+                    db,
+                )
+                trained += 1
+            except Exception as exc:
+                failures.append({"station_code": station_code, "error": str(exc)})
+
+    return {
+        "status": "ok" if not failures else "partial",
+        "stations": len(stations),
+        "trained": trained,
+        "skipped": skipped,
+        "failed": len(failures),
+        "failures": failures[:25],
+    }
 
 
 def get_station_date_range(station_code: str, db):
@@ -184,28 +213,37 @@ def delete_unverified_users(days: int = 1):
 @celery_app.task
 def retrain_recommender_model():
     """Retrain model weekly with fresh data"""
-    import subprocess
-    import os
-    
+    model_path = Path(settings.model_path)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    new_model_path = model_path.with_name(f"{model_path.stem}_new{model_path.suffix}")
+
+    env = os.environ.copy()
+    database_url = env.get("DATABASE_URL") or settings.database_url
+    env["DATABASE_URL"] = database_url.replace("+asyncpg", "+psycopg2")
+    env["MODEL_OUT"] = str(new_model_path)
+    env.setdefault("LOOKBACK_DAYS", "60")
+
     result = subprocess.run(
-        ['python', 'app/services/recommender/train_from_db.py'],
-        env={
-            'DATABASE_URL': os.environ['DATABASE_URL'],
-            'MODEL_OUT': 'models/recommender_new.joblib',
-            'LOOKBACK_DAYS': '60',
-        },
+        [sys.executable, "-m", "app.services.recommender.train_from_db"],
+        env=env,
         capture_output=True,
-        text=True
+        text=True,
     )
     
     if result.returncode == 0:
-        # Atomic swap
-        os.rename('models/recommender_new.joblib', 'models/recommender.joblib')
-        # Reload in API
-        requests.post('http://localhost:8000/api/v1/model/reload')
-        return {"status": "success", "output": result.stdout}
-    else:
-        return {"status": "failed", "error": result.stderr}
+        new_model_path.replace(model_path)
+        return {
+            "status": "success",
+            "model_path": str(model_path),
+            "output": result.stdout,
+        }
+
+    return {
+        "status": "failed",
+        "returncode": result.returncode,
+        "error": result.stderr,
+        "output": result.stdout,
+    }
     
 @celery_app.task
 def capture_station_forecast_snapshots(limit: int | None = None):

@@ -81,6 +81,11 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 - `GET /api/v1/air-quality?lat=..&lon=..` — Current air quality for a location.
 - `GET /api/v1/air-quality/hourly?lat=..&lon=..` — Hourly air quality for a location.
 
+### ML
+- `GET /api/v1/ml/models` — List station model trainers available in the backend image.
+- `POST /api/v1/ml/train` — Train and save a station variable model for a station/date range.
+- `POST /api/v1/model/reload` — Reload the recommender model after offline training.
+
 ### Comarcas & Geo
 - `GET /api/v1/comarcas/geojson` — GeoJSON of all comarcas (optimized, cached).
 - `GET /api/v1/comarcas/lookup?lat=..&lon=..` — Find comarca by coordinates.

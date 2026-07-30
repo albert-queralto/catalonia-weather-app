@@ -21,6 +21,13 @@ from app.services.recommender.features import (
     compute_ozone_penalty,
 )
 
+def database_url_from_env() -> str:
+    pg_url = os.environ.get("DATABASE_URL") or os.environ.get("PG_URL")
+    if not pg_url:
+        raise SystemExit("Set DATABASE_URL or PG_URL")
+    return pg_url.replace("+asyncpg", "+psycopg2")
+
+
 def haversine_km(lat1, lon1, lat2, lon2) -> float:
     # fast-ish vectorizable implementation for pandas
     R = 6371.0
@@ -33,10 +40,7 @@ def haversine_km(lat1, lon1, lat2, lon2) -> float:
     return R * c
 
 def main():
-    pg_url = os.environ.get("DATABASE_URL")  # e.g. postgresql+psycopg2://postgres:postgres@localhost:5432/activities
-    if not pg_url:
-        raise SystemExit("Set DATABASE_URL")
-
+    pg_url = database_url_from_env()
     out_path = os.environ.get("MODEL_OUT", "../models/recommender.joblib")
     lookback_days = int(os.environ.get("LOOKBACK_DAYS", "30"))
     label_window_days = int(os.environ.get("LABEL_WINDOW_DAYS", "7"))

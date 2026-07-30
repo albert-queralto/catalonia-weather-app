@@ -49,6 +49,7 @@ services:
       - private
     volumes:
       - ./backend:/app
+      - ./models:/models
     command: ["bash", "-lc", "uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload"]
 
   worker:
@@ -64,6 +65,7 @@ services:
       - private
     volumes:
       - ./backend:/app
+      - ./models:/models
     command: ["bash", "-lc", "celery -A app.workers.celery_app.celery_app worker -l INFO"]
 
   beat:
@@ -79,6 +81,7 @@ services:
       - private
     volumes:
       - ./backend:/app
+      - ./models:/models
     command: ["bash", "-lc", "celery -A app.workers.celery_app.celery_app beat -l INFO"]
 
   frontend:

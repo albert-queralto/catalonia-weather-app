@@ -10,4 +10,5 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_loaded": model.model is not None}
+    model.load_if_stale()
+    return {"ok": True, "status": "ok", "model_loaded": model.model is not None}

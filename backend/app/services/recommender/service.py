@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import joblib
 import numpy as np
@@ -64,6 +65,13 @@ class MLRecommender:
         self.model_path = model_path
         self.model = None
         self.feature_order: List[str] = []
+        self._loaded_mtime: Optional[float] = None
+
+    def _model_mtime(self) -> Optional[float]:
+        try:
+            return Path(self.model_path).stat().st_mtime
+        except OSError:
+            return None
 
     def confidence_from_score(self, score: float) -> float:
         if self.model is None:
@@ -73,6 +81,7 @@ class MLRecommender:
         return float(abs(p - 0.5) * 2.0)
 
     def load(self) -> None:
+        mtime = self._model_mtime()
         try:
             payload = joblib.load(self.model_path)
             self.model = payload["model"]
@@ -80,14 +89,22 @@ class MLRecommender:
             
             if self.feature_order != FEATURE_COLUMNS:
                 raise ValueError(f"Model feature order {self.feature_order} does not match expected {FEATURE_COLUMNS}")
+
+            self._loaded_mtime = mtime
                 
         except FileNotFoundError:
             self.model = None
             self.feature_order = []
+            self._loaded_mtime = None
         except Exception:
             # Fail closed: keep fallback scoring
             self.model = None
             self.feature_order = []
+            self._loaded_mtime = mtime
+
+    def load_if_stale(self) -> None:
+        if self._model_mtime() != self._loaded_mtime:
+            self.load()
 
     def score(self, features: Dict[str, float]) -> float:
         """
@@ -95,6 +112,8 @@ class MLRecommender:
         If model loaded: probability of positive outcome (click/save/complete).
         Otherwise: heuristic fallback.
         """
+        self.load_if_stale()
+
         if self.model is None or not self.feature_order:
             # Simple fallback heuristic
             base = 0.0

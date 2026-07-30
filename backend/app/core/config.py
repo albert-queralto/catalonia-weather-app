@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     aemet_api_key: str = Field(default="", alias="AEMET_API_KEY")
     weatherkit_token: str = Field(default="", alias="WEATHERKIT_TOKEN")
 
-    model_path: str = Field(default="/models/recommender.joblib")
+    model_path: str = Field(default="/models/recommender.joblib", alias="MODEL_PATH")
+    station_model_dir: str = Field(
+        default="app/services/models/stations",
+        alias="STATION_MODEL_DIR",
+    )
     
     jwt_secret_key: str = Field(default="supersecretkey", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
