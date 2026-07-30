@@ -2,7 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { useAuth } from "../auth/AuthContext";
 import { getRecommendations, postEvent } from "../api/endpoints";
-import { TextField, Button, Checkbox, FormControlLabel, Chip } from "@mui/material";
+import { Button, Checkbox, Chip, FormControlLabel, IconButton, TextField, Tooltip } from "@mui/material";
+import AirIcon from "@mui/icons-material/Air";
+import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import ExploreIcon from "@mui/icons-material/Explore";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
+import NotInterestedIcon from "@mui/icons-material/NotInterested";
+import PlaceIcon from "@mui/icons-material/Place";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
+import ThunderstormIcon from "@mui/icons-material/Thunderstorm";
+import TravelExploreIcon from "@mui/icons-material/TravelExplore";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import type { ActivityOut } from "../api/types";
 import 'leaflet/dist/leaflet.css';
 import AlertActionCards from "./AlertActionCards";
@@ -236,16 +247,19 @@ function formatBestWindow(activity: ActivityOut) {
 
   function RatingButtons({ activity }: { activity: ActivityOut }) {
     return (
-      <div>
+      <div className="rating-controls">
+        <span className="rating-controls__label">Rate</span>
         {[1, 2, 3, 4, 5].map((star) => (
-          <Button
-            key={star}
-            size="small"
-            onClick={() => sendEvent(activity, "rate", star)}
-            style={{ minWidth: 0, padding: "2px 6px" }}
-          >
-            {star}★
-          </Button>
+          <Tooltip key={star} title={`Rate ${star} star${star === 1 ? "" : "s"}`}>
+            <IconButton
+              aria-label={`Rate ${activity.name} ${star} star${star === 1 ? "" : "s"}`}
+              size="small"
+              color="primary"
+              onClick={() => sendEvent(activity, "rate", star)}
+            >
+              <StarBorderIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         ))}
       </div>
     );
@@ -255,170 +269,277 @@ function formatBestWindow(activity: ActivityOut) {
     return !activity.indoor;
   }
 
+  function activityMeta(activity: ActivityOut) {
+    return `${activity.category} | ${activity.indoor ? "indoor" : "outdoor"} | ${activity.distance_km.toFixed(2)} km`;
+  }
+
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Activity Recommendations</h2>
+    <div className="weather-workspace">
+      <section className="weather-page-header" aria-labelledby="recommender-title">
+        <p className="weather-page-header__eyebrow">Weather-aware planner</p>
+        <h1 id="recommender-title">Activity Recommendations</h1>
+        <p>
+          Find nearby options with local forecast timing, air quality sensitivity, and active
+          warnings considered together.
+        </p>
+        <div className="weather-page-header__status" role="status" aria-live="polite">
+          {status || "Ready from Barcelona coordinates. Select the map or tune the filters."}
+        </div>
+      </section>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-        <TextField
-          label="Latitude"
-          type="number"
-          value={lat}
-          onChange={e => setLat(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-        <TextField
-          label="Longitude"
-          type="number"
-          value={lon}
-          onChange={e => setLon(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-        <TextField
-          label="Radius (km)"
-          type="number"
-          value={radiusKm}
-          onChange={e => setRadiusKm(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-        <TextField
-          label="Horizon (hours)"
-          type="number"
-          value={horizonHours}
-          onChange={e => setHorizonHours(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-        <TextField
-          label="Limit"
-          type="number"
-          value={limit}
-          onChange={e => setLimit(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-        <TextField
-          label="Plan over (hours)"
-          type="number"
-          value={planningHours}
-          onChange={e => setPlanningHours(Number(e.target.value))}
-          size="small"
-          style={{ marginBottom: 16 }}
-        />
-
-        <AlertActionCards lat={lat} lon={lon} radiusKm={radiusKm} />
-        <AlertsTimeline lat={lat} lon={lon} radiusKm={radiusKm} />
-
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={sensitiveToAirQuality}
-              onChange={e => setSensitiveToAirQuality(e.target.checked)}
+      <section className="recommendation-tools" aria-label="Recommendation controls">
+        <div className="control-panel">
+          <div className="control-panel__header">
+            <div>
+              <h2>Search Conditions</h2>
+              <p>Adjust the location, range, and planning window for the next recommendation run.</p>
+            </div>
+            <Chip
+              icon={<ExploreIcon />}
+              label={`${radiusKm} km radius`}
+              color="secondary"
+              variant="outlined"
             />
-          }
-          label="Sensitive to air quality"
-          sx={{ marginBottom: 1 }}
-        />
-        <Button variant="outlined" onClick={useGeolocation} sx={{ mr: 1 }}>
-          Use my location
-        </Button>
-        <Button variant="contained" color="primary" onClick={fetchRecs} disabled={busy}>
-          {busy ? "Loading…" : "Get recommendations"}
-        </Button>
-      </div>
-
-      <div style={{ marginTop: 10, opacity: 0.8 }}>{status}</div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
-        <div>
-          {Object.entries(groupedRecs).map(([group, items]) => (
-            <section key={group} style={{ marginBottom: 18 }}>
-              <h3 style={{ margin: "8px 0" }}>{group}</h3>
-
-              {items.map((r) => (
-                <div
-                  key={r.id}
-                  style={{
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    padding: 12,
-                    marginBottom: 10,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <b>{r.name}</b>
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>
-                      #{r.position ?? "-"}
-                    </span>
-                  </div>
-
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {r.recommendation_label && (
-                      <Chip label={r.recommendation_label} size="small" color="primary" />
-                    )}
-
-                    {activityIsOutdoor(r) && (
-                      <Chip
-                        label="Check weather alerts"
-                        size="small"
-                        color="warning"
-                      />
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: 6 }}>
-                    {r.category} • {r.indoor ? "indoor" : "outdoor"} •{" "}
-                    {r.distance_km.toFixed(2)} km
-                  </div>
-
-                  <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
-                    {r.reason}
-                  </div>
-
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <Button size="small" onClick={() => sendEvent(r, "click")}>
-                      View
-                    </Button>
-
-                    <Button size="small" onClick={() => sendEvent(r, "save")}>
-                      Save
-                    </Button>
-
-                    <Button size="small" onClick={() => sendEvent(r, "complete")}>
-                      Completed
-                    </Button>
-
-                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "bad_weather")}>
-                      Bad weather
-                    </Button>
-
-                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "not_interested")}>
-                      Not interested
-                    </Button>
-
-                    <Button size="small" onClick={() => sendEvent(r, "dismiss", undefined, "too_far")}>
-                      Too far
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </section>
-          ))}
-        </div>
-
-        <div>
-          <div style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
-            <div ref={mapRef} style={{ height: 520 }} />
           </div>
-          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-            Click the map to select latitude and longitude.<br />
-            Activity markers are shown if location is available.<br />
+
+          <div className="control-panel__grid">
+            <TextField
+              label="Latitude"
+              type="number"
+              value={lat}
+              onChange={e => setLat(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Longitude"
+              type="number"
+              value={lon}
+              onChange={e => setLon(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Radius (km)"
+              type="number"
+              value={radiusKm}
+              onChange={e => setRadiusKm(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Horizon (hours)"
+              type="number"
+              value={horizonHours}
+              onChange={e => setHorizonHours(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Limit"
+              type="number"
+              value={limit}
+              onChange={e => setLimit(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+            <TextField
+              label="Plan over (hours)"
+              type="number"
+              value={planningHours}
+              onChange={e => setPlanningHours(Number(e.target.value))}
+              size="small"
+              fullWidth
+            />
+          </div>
+
+          <div className="control-panel__actions">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={sensitiveToAirQuality}
+                  onChange={e => setSensitiveToAirQuality(e.target.checked)}
+                />
+              }
+              label="Sensitive to air quality"
+            />
+            <Button variant="outlined" startIcon={<MyLocationIcon />} onClick={useGeolocation}>
+              Use my location
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<TravelExploreIcon />}
+              onClick={fetchRecs}
+              disabled={busy}
+            >
+              {busy ? "Loading..." : "Get recommendations"}
+            </Button>
           </div>
         </div>
-      </div>
+
+        <div className="alert-stream">
+          <AlertActionCards lat={lat} lon={lon} radiusKm={radiusKm} />
+          <AlertsTimeline lat={lat} lon={lon} radiusKm={radiusKm} />
+        </div>
+      </section>
+
+      <section className="recommendation-layout" aria-label="Recommendations and map">
+        <div className="recommendation-column">
+          {Object.keys(groupedRecs).length === 0 ? (
+            <div className="empty-state">
+              <h2>No recommendations loaded yet</h2>
+              <p>Run a search to see activity options ranked for this place and forecast window.</p>
+            </div>
+          ) : (
+            Object.entries(groupedRecs).map(([group, items]) => (
+              <section key={group} className="recommendation-group">
+                <h2 className="recommendation-group__title">
+                  {group}
+                  <span>{items.length} option{items.length === 1 ? "" : "s"}</span>
+                </h2>
+
+                {items.map((r) => {
+                  const bestWindow = formatBestWindow(r);
+
+                  return (
+                    <article key={r.id} className="activity-card">
+                      <div className="activity-card__topline">
+                        <h3 className="activity-card__name">{r.name}</h3>
+                        <span className="activity-card__rank">
+                          {r.position != null ? `#${r.position}` : "Unranked"}
+                        </span>
+                      </div>
+
+                      <div className="activity-card__chips">
+                        {r.recommendation_label && (
+                          <Chip label={r.recommendation_label} size="small" color="primary" />
+                        )}
+
+                        {bestWindow && (
+                          <Chip label={bestWindow} size="small" variant="outlined" color="secondary" />
+                        )}
+
+                        {activityIsOutdoor(r) && (
+                          <Chip
+                            icon={<ThunderstormIcon />}
+                            label="Weather alerts"
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                          />
+                        )}
+
+                        {sensitiveToAirQuality && activityIsOutdoor(r) && (
+                          <Chip
+                            icon={<AirIcon />}
+                            label="Air quality"
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        )}
+                      </div>
+
+                      <div className="activity-card__meta">
+                        {activityMeta(r)}
+                      </div>
+
+                      <div className="activity-card__reason">
+                        {r.reason}
+                      </div>
+
+                      <div className="activity-card__actions">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<VisibilityIcon />}
+                          onClick={() => sendEvent(r, "click")}
+                        >
+                          View
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<BookmarkBorderIcon />}
+                          onClick={() => sendEvent(r, "save")}
+                        >
+                          Save
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<CheckCircleOutlineIcon />}
+                          onClick={() => sendEvent(r, "complete")}
+                        >
+                          Completed
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          startIcon={<ThunderstormIcon />}
+                          onClick={() => sendEvent(r, "dismiss", undefined, "bad_weather")}
+                        >
+                          Bad weather
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          startIcon={<NotInterestedIcon />}
+                          onClick={() => sendEvent(r, "dismiss", undefined, "not_interested")}
+                        >
+                          Not interested
+                        </Button>
+
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          startIcon={<PlaceIcon />}
+                          onClick={() => sendEvent(r, "dismiss", undefined, "too_far")}
+                        >
+                          Too far
+                        </Button>
+                      </div>
+
+                      <RatingButtons activity={r} />
+                    </article>
+                  );
+                })}
+              </section>
+            ))
+          )}
+        </div>
+
+        <aside className="map-panel" aria-label="Location map">
+          <div className="map-panel__surface">
+            <div className="map-panel__header">
+              <div>
+                <h2>Selected Area</h2>
+                <p>
+                  {lat.toFixed(5)}, {lon.toFixed(5)}
+                </p>
+              </div>
+              <Chip icon={<PlaceIcon />} label="Map picker" size="small" color="secondary" />
+            </div>
+
+            <div className="map-frame">
+              <div ref={mapRef} />
+            </div>
+
+            <p className="map-panel__hint">
+              Click the map to select latitude and longitude. Activity markers appear when
+              location data is available.
+            </p>
+          </div>
+        </aside>
+      </section>
     </div>
   );
 }

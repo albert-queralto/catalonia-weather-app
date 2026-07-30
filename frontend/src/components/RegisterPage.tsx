@@ -1,8 +1,8 @@
 import React, { useState } from "react";
+import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
+import { Button } from "@mui/material";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function RegisterPage() {
   const nav = useNavigate();
@@ -49,28 +49,42 @@ export default function RegisterPage() {
     }
   }
 
-  if (registered) return <div style={{ padding: 16 }}>Registration successful! Check your email to verify your account before logging in.</div>;
+  if (registered) {
+    return (
+      <div className="auth-success">
+        <section className="auth-success__panel">
+          Registration successful. Check your email to verify your account before logging in.
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 16, maxWidth: 420 }}>
-      <h2>Register</h2>
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <label>
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%" }} />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%" }} />
-        </label>
-        <button disabled={busy}>{busy ? "Creating…" : "Create account"}</button>
-      </form>
+    <div className="auth-page">
+      <section className="auth-card" aria-labelledby="register-title">
+        <h2 id="register-title">Register</h2>
+        <form onSubmit={onSubmit} className="auth-form">
+          <label>
+            Email
+            <input value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <Button type="submit" variant="contained" startIcon={<PersonAddAltIcon />} disabled={busy}>
+            {busy ? "Creating..." : "Create account"}
+          </Button>
+        </form>
 
-      {err && <div style={{ marginTop: 10, color: "crimson" }}>{err}</div>}
+        {err && <div className="auth-error">{err}</div>}
 
-      <div style={{ marginTop: 12 }}>
-        Already have an account? <Link to="/login">Login</Link>
-      </div>
+        <div className="auth-links">
+          <span>
+            Already have an account? <Link to="/login">Login</Link>
+          </span>
+        </div>
+      </section>
     </div>
   );
 }

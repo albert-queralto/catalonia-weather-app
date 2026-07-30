@@ -2,7 +2,9 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useEffect, useState, type ReactElement } from "react";
 import CloseIcon from "@mui/icons-material/Close";
+import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 import "./Navbar.css";
 
@@ -100,7 +102,9 @@ export default function Navbar() {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <Link to={user ? "/home" : "/"} className="navbar__brand" onClick={closeMenus}>
-        <span className="navbar__brandIcon" aria-hidden="true">🌤️</span>
+        <span className="navbar__brandIcon" aria-hidden="true">
+          <CloudQueueIcon fontSize="small" />
+        </span>
         <span className="navbar__brandText">Catalunya Weather Portal</span>
       </Link>
 
@@ -172,7 +176,8 @@ export default function Navbar() {
                 {user.email} ({user.role})
               </span>
               <button type="button" onClick={onLogout} className="navbar__logout">
-                Logout
+                <LogoutIcon fontSize="small" aria-hidden="true" />
+                <span>Logout</span>
               </button>
             </>
           )}

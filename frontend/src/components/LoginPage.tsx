@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import LoginIcon from "@mui/icons-material/Login";
+import { Button } from "@mui/material";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
@@ -26,28 +28,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 420 }}>
-      <h2>Login</h2>
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <label>
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%" }} />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: "100%" }} />
-        </label>
-        <button disabled={busy}>{busy ? "Signing in…" : "Login"}</button>
-      </form>
+    <div className="auth-page">
+      <section className="auth-card" aria-labelledby="login-title">
+        <h2 id="login-title">Login</h2>
+        <form onSubmit={onSubmit} className="auth-form">
+          <label>
+            Email
+            <input value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <Button type="submit" variant="contained" startIcon={<LoginIcon />} disabled={busy}>
+            {busy ? "Signing in..." : "Login"}
+          </Button>
+        </form>
 
-      {err && <div style={{ marginTop: 10, color: "crimson" }}>{err}</div>}
+        {err && <div className="auth-error">{err}</div>}
 
-      <div style={{ marginTop: 12 }}>
-        No account? <Link to="/register">Register</Link>
-      </div>
-      <div style={{ marginTop: 8 }}>
-        <Link to="/request-password-reset">Forgot password?</Link>
-      </div>
+        <div className="auth-links">
+          <span>
+            No account? <Link to="/register">Register</Link>
+          </span>
+          <Link to="/request-password-reset">Forgot password?</Link>
+        </div>
+      </section>
     </div>
   );
 }
