@@ -19,6 +19,8 @@ const LeafletTileLayer = TileLayer as any;
 const LeafletGeoJSON = GeoJSON as any;
 
 const DAY_LABELS = ["Today", "Tomorrow"];
+const jsonCache = new Map<string, unknown>();
+const jsonInFlight = new Map<string, Promise<unknown>>();
 
 type PeriodOption = {
   name: string;
@@ -58,6 +60,53 @@ function formatDateTime(value: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+
+  try {
+    const body = JSON.parse(text);
+    const detail = body?.detail || body?.message;
+
+    if (typeof detail === "string") {
+      if (res.status === 429) {
+        return "Meteocat request limit exceeded. Showing alerts is temporarily blocked until the API quota resets.";
+      }
+      return detail;
+    }
+  } catch {
+    // Fall back to text/plain handling below.
+  }
+
+  return text || `${res.status} ${res.statusText}`;
+}
+
+async function fetchJsonCached<T>(url: string): Promise<T> {
+  if (jsonCache.has(url)) {
+    return jsonCache.get(url) as T;
+  }
+
+  const inFlight = jsonInFlight.get(url);
+  if (inFlight) {
+    return inFlight as Promise<T>;
+  }
+
+  const promise = fetch(url)
+    .then(async res => {
+      if (!res.ok) {
+        throw new Error(await parseErrorMessage(res));
+      }
+      return res.json();
+    })
+    .then(data => {
+      jsonCache.set(url, data);
+      return data;
+    })
+    .finally(() => jsonInFlight.delete(url));
+
+  jsonInFlight.set(url, promise);
+  return promise as Promise<T>;
 }
 
 function dangerColor(danger: number): string {
@@ -192,10 +241,19 @@ export default function EpisodisObertsMap() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/comarcas/geojson`)
-      .then(res => res.json())
-      .then(setComarcasGeoJson)
-      .catch(() => setComarcasGeoJson(null));
+    let active = true;
+
+    fetchJsonCached<any>(`${API_BASE}/comarcas/geojson`)
+      .then(geojson => {
+        if (active) setComarcasGeoJson(geojson);
+      })
+      .catch(() => {
+        if (active) setComarcasGeoJson(null);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -209,15 +267,13 @@ export default function EpisodisObertsMap() {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_BASE}/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`)
-      .then(async res => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`HTTP ${res.status}: ${text}`);
-        }
-        return res.json();
-      })
-      .then((res: EpisodiObert[]) => {
+    let active = true;
+    const url = `${API_BASE}/meteocat/episodis-oberts?year=${year}&month=${month}&day=${day}`;
+
+    fetchJsonCached<EpisodiObert[]>(url)
+      .then(res => {
+        if (!active) return;
+
         const nextData = Array.isArray(res) ? res : [];
         const nextPeriods = getPeriodOptions(nextData);
 
@@ -226,12 +282,20 @@ export default function EpisodisObertsMap() {
         setSelectedPeriod(firstPeriodWithWarnings(nextPeriods));
       })
       .catch(err => {
+        if (!active) return;
+
         setData([]);
         setPeriods([]);
         setSelectedPeriod(null);
         setError(err.message || "Failed to fetch Meteocat SMP episodes");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [dayOffset]);
 
   const comarcaNames = useMemo(() => getComarcaNameMap(comarcasGeoJson), [comarcasGeoJson]);
