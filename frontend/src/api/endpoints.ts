@@ -2,6 +2,7 @@ import { apiFetch } from "./client";
 import type {
   ActivityOut,
   Me,
+  Role,
   TokenOut,
   EventIn,
   AlertActionCard,
@@ -143,6 +144,41 @@ export async function updateProfile(
   });
 }
 
+export async function listUsers(token: string) {
+  return apiFetch<Me[]>("/users/", {
+    method: "GET",
+    token,
+  });
+}
+
+export async function deleteUser(token: string, userId: string) {
+  return apiFetch<Record<string, never>>(`/users/${userId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export async function updateUserRole(token: string, userId: string, role: Role) {
+  return apiFetch<Me>(`/users/${userId}/role?role=${encodeURIComponent(role)}`, {
+    method: "PUT",
+    token,
+  });
+}
+
+export async function updateUserActive(token: string, userId: string, isActive: boolean) {
+  return apiFetch<Me>(`/users/${userId}/active?is_active=${String(isActive)}`, {
+    method: "PUT",
+    token,
+  });
+}
+
+export async function updateUserVerified(token: string, userId: string, isVerified: boolean) {
+  return apiFetch<Me>(`/users/${userId}/verified?is_verified=${String(isVerified)}`, {
+    method: "PUT",
+    token,
+  });
+}
+
 export async function getStations() {
   return apiFetch<any[]>("/meteocat/stations", {
     method: "GET",
@@ -213,4 +249,3 @@ export async function captureForecastSnapshots(limit = 25) {
     }
   );
 }
-

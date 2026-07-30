@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, constr, validator
 from typing import Optional, List, Literal
 from uuid import UUID
@@ -33,6 +35,8 @@ class MeOut(BaseModel):
     role: Role
     is_active: bool
     is_verified: bool
+    created_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
 
     notification_preferences: bool = True
     favorite_comarques: List[str] = []

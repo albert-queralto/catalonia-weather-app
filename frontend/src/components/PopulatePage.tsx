@@ -126,7 +126,11 @@ export default function PopulatePage() {
 
   async function fetchFirstUserId(): Promise<string | null> {
     try {
-      const users = await fetchJson(`${recommenderBase}/auth/users`);
+      if (!authToken) return null;
+
+      const users = await fetchJson(`${recommenderBase}/users/`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       return users.length > 0 ? users[0].id : null;
     } catch {
       return null;
@@ -160,8 +164,9 @@ export default function PopulatePage() {
 
       let userId = recUserId;
       if (!userId) {
-        userId = await fetchFirstUserId();
-        if (!userId) throw new Error('No users found in the database. Please register a user first.');
+        const fetchedUserId = await fetchFirstUserId();
+        if (!fetchedUserId) throw new Error('No users found in the database. Please register a user first.');
+        userId = fetchedUserId;
         setRecUserId(userId);
       }
 

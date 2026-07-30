@@ -115,6 +115,8 @@ export type Me = {
   role: Role;
   is_active: boolean;
   is_verified: boolean;
+  created_at?: string | null;
+  last_login?: string | null;
 
   notification_preferences: boolean;
   favorite_comarques: string[];

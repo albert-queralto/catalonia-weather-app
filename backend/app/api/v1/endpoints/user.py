@@ -1,5 +1,5 @@
 from app.services.user.email_utils import send_email
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.db.session import get_session
 from app.db.models import User
@@ -57,8 +57,11 @@ def update_me(
 def delete_user(
     user_id: UUID,
     db: Session = Depends(get_session),
-    _: User = Depends(require_role("admin"))
+    admin: User = Depends(require_role("admin"))
 ):
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -71,14 +74,57 @@ def update_user_role(
     user_id: UUID,
     role: str,
     db: Session = Depends(get_session),
-    _: User = Depends(require_role("admin"))
+    admin: User = Depends(require_role("admin"))
 ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if role not in ("user", "admin"):
         raise HTTPException(status_code=400, detail="Invalid role")
+    if user_id == admin.id and role != "admin":
+        raise HTTPException(status_code=400, detail="You cannot remove your own admin role")
+
     user.role = role
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.put("/{user_id}/active", response_model=MeOut)
+def update_user_active(
+    user_id: UUID,
+    is_active: bool = Query(..., description="Whether the user can sign in"),
+    db: Session = Depends(get_session),
+    admin: User = Depends(require_role("admin"))
+):
+    if user_id == admin.id and not is_active:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_active = is_active
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.put("/{user_id}/verified", response_model=MeOut)
+def update_user_verified(
+    user_id: UUID,
+    is_verified: bool = Query(..., description="Whether the user's email is verified"),
+    db: Session = Depends(get_session),
+    admin: User = Depends(require_role("admin"))
+):
+    if user_id == admin.id and not is_verified:
+        raise HTTPException(status_code=400, detail="You cannot mark your own account as unverified")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_verified = is_verified
+    if is_verified:
+        user.verification_token = None
     db.commit()
     db.refresh(user)
     return user

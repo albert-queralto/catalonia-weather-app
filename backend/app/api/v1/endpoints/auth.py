@@ -9,7 +9,7 @@ from app.db.models import User
 from app.services.user.schemas import RegisterIn, TokenOut, MeOut
 from app.core.security import hash_password, verify_password, create_access_token, generate_email_token
 from app.core.config import settings
-from app.services.user.auth import get_current_user
+from app.services.user.auth import get_current_user, require_role
 from app.services.user.email_utils import send_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -103,6 +103,9 @@ def me(user: User = Depends(get_current_user)):
     """
     return user
 
-@router.get("/users")
-def list_users(db: Session = Depends(get_session)):
+@router.get("/users", response_model=list[MeOut])
+def list_users(
+    db: Session = Depends(get_session),
+    _: User = Depends(require_role("admin"))
+):
     return db.query(User).all()
