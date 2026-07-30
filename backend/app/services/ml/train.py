@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import unicodedata
 from datetime import date, datetime, time, timedelta, timezone
@@ -44,6 +45,8 @@ BASE_MODEL_NAMES = [
     "hist_gradient_boosting",
     "ridge",
 ]
+
+MODEL_REGISTRY_FILENAME = "registry.json"
 
 VARIABLE_ALIASES = {
     "precipitation": {
@@ -92,6 +95,83 @@ def fetch_all_stations(db: Session | None = None) -> list[dict[str, Any]]:
 
     with SessionLocal() as session:
         return fetch(session)
+
+
+def list_trained_models() -> list[dict[str, Any]]:
+    output_dir = station_model_dir()
+    if not output_dir.exists():
+        return []
+
+    registry = read_model_registry()
+    models = [
+        _model_summary(path, registry)
+        for path in output_dir.glob("*.joblib")
+        if path.is_file()
+    ]
+
+    return sorted(
+        models,
+        key=lambda model: str(model.get("trained_at") or model.get("modified_at") or ""),
+        reverse=True,
+    )
+
+
+def get_trained_model(model_id: str) -> dict[str, Any]:
+    path = _safe_model_path(model_id)
+    if not path.exists():
+        raise FileNotFoundError(f"Model not found: {model_id}")
+
+    return _model_summary(path, read_model_registry(), include_features=True)
+
+
+def activate_trained_model(model_id: str) -> dict[str, Any]:
+    path = _safe_model_path(model_id)
+    if not path.exists():
+        raise FileNotFoundError(f"Model not found: {model_id}")
+
+    registry = read_model_registry()
+    summary = _model_summary(path, registry, include_features=True)
+
+    if summary.get("load_error"):
+        raise ValueError(f"Cannot activate unreadable model: {summary['load_error']}")
+    if not summary.get("station_code") or summary.get("variable_code") is None:
+        raise ValueError("Cannot activate a model without station and variable metadata")
+
+    key = _active_key(str(summary["station_code"]), int(summary["variable_code"]))
+    registry.setdefault("active", {})[key] = model_id
+    registry["updated_at"] = datetime.now(timezone.utc).isoformat()
+    write_model_registry(registry)
+
+    summary["active"] = True
+    return summary
+
+
+def delete_trained_model(model_id: str) -> dict[str, Any]:
+    path = _safe_model_path(model_id)
+    if not path.exists():
+        raise FileNotFoundError(f"Model not found: {model_id}")
+
+    registry = read_model_registry()
+    removed_active_keys = [
+        key
+        for key, active_model_id in registry.get("active", {}).items()
+        if active_model_id == model_id
+    ]
+
+    for key in removed_active_keys:
+        registry["active"].pop(key, None)
+
+    path.unlink()
+
+    if removed_active_keys:
+        registry["updated_at"] = datetime.now(timezone.utc).isoformat()
+        write_model_registry(registry)
+
+    return {
+        "status": "deleted",
+        "model_id": model_id,
+        "removed_active_keys": removed_active_keys,
+    }
 
 
 def train_and_save_model(
@@ -156,7 +236,8 @@ def train_and_save_model(
     predictions = model.predict(X_eval)
     metrics = _regression_metrics(y_eval, predictions)
 
-    trained_at = datetime.now(timezone.utc).isoformat()
+    trained_at_dt = datetime.now(timezone.utc)
+    trained_at = trained_at_dt.isoformat()
     payload = {
         "model": model,
         "model_name": _normalise_model_name(model_name),
@@ -168,6 +249,7 @@ def train_and_save_model(
         "target_variable": str(target_variable),
         "date_from": start_date.isoformat(),
         "date_to": end_date.isoformat(),
+        "rows": int(len(train_frame)),
         "training_rows": int(len(X_train)),
         "evaluation_rows": int(len(X_eval)),
         "evaluation": evaluation,
@@ -179,6 +261,7 @@ def train_and_save_model(
         station_code=station_code,
         variable_code=int(variable["codi"]),
         model_name=_normalise_model_name(model_name),
+        trained_at=trained_at_dt,
     )
     model_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -186,9 +269,14 @@ def train_and_save_model(
     joblib.dump(payload, tmp_path)
     tmp_path.replace(model_path)
 
+    model_id = model_path.name
+    activate_trained_model(model_id)
+
     return {
         "status": "ok",
+        "model_id": model_id,
         "model_path": str(model_path),
+        "active": True,
         "station_code": station_code,
         "station_name": station.nom,
         "variable_code": int(variable["codi"]),
@@ -430,10 +518,123 @@ def _regression_metrics(y_true: Iterable[float], y_pred: Iterable[float]) -> dic
     }
 
 
-def _station_model_path(*, station_code: str, variable_code: int, model_name: str) -> Path:
+def station_model_dir() -> Path:
     output_dir = Path(settings.station_model_dir)
     if not output_dir.is_absolute():
         output_dir = Path.cwd() / output_dir
+    return output_dir
 
-    filename = f"{_slug(station_code)}_{variable_code}_{_slug(model_name)}.joblib"
+
+def read_model_registry() -> dict[str, Any]:
+    path = station_model_dir() / MODEL_REGISTRY_FILENAME
+    if not path.exists():
+        return {"active": {}}
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"active": {}}
+
+    if not isinstance(data, dict):
+        return {"active": {}}
+    if not isinstance(data.get("active"), dict):
+        data["active"] = {}
+
+    return data
+
+
+def write_model_registry(registry: dict[str, Any]) -> None:
+    output_dir = station_model_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / MODEL_REGISTRY_FILENAME
+    tmp_path = path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(registry, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _station_model_path(
+    *,
+    station_code: str,
+    variable_code: int,
+    model_name: str,
+    trained_at: datetime,
+) -> Path:
+    output_dir = station_model_dir()
+    timestamp = trained_at.strftime("%Y%m%dT%H%M%SZ")
+    filename = f"{_slug(station_code)}_{variable_code}_{_slug(model_name)}_{timestamp}.joblib"
     return output_dir / filename
+
+
+def _active_key(station_code: str, variable_code: int) -> str:
+    return f"{station_code}:{variable_code}"
+
+
+def _safe_model_path(model_id: str) -> Path:
+    if "/" in model_id or "\\" in model_id or model_id in {"", ".", ".."}:
+        raise ValueError("Invalid model id")
+    if not model_id.endswith(".joblib"):
+        raise ValueError("Invalid model id")
+
+    output_dir = station_model_dir().resolve()
+    path = (output_dir / model_id).resolve()
+
+    if path.parent != output_dir:
+        raise ValueError("Invalid model id")
+
+    return path
+
+
+def _model_summary(
+    path: Path,
+    registry: dict[str, Any],
+    *,
+    include_features: bool = False,
+) -> dict[str, Any]:
+    stat = path.stat()
+    summary: dict[str, Any] = {
+        "id": path.name,
+        "model_path": str(path),
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "active": False,
+    }
+
+    try:
+        payload = joblib.load(path)
+    except Exception as exc:
+        summary["load_error"] = str(exc)
+        return summary
+
+    station_code = payload.get("station_code")
+    variable_code = payload.get("variable_code")
+    active_key = None
+
+    if station_code and variable_code is not None:
+        active_key = _active_key(str(station_code), int(variable_code))
+
+    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+
+    summary.update(
+        {
+            "station_code": station_code,
+            "station_name": payload.get("station_name"),
+            "variable_code": variable_code,
+            "variable_name": payload.get("variable_name"),
+            "target_variable": payload.get("target_variable"),
+            "model_name": payload.get("model_name"),
+            "date_from": payload.get("date_from"),
+            "date_to": payload.get("date_to"),
+            "rows": payload.get("rows"),
+            "training_rows": payload.get("training_rows"),
+            "evaluation_rows": payload.get("evaluation_rows"),
+            "evaluation": payload.get("evaluation"),
+            "metrics": metrics,
+            "trained_at": payload.get("trained_at"),
+            "active": bool(active_key and registry.get("active", {}).get(active_key) == path.name),
+        }
+    )
+
+    if include_features:
+        summary["feature_order"] = payload.get("feature_order") or []
+
+    return summary

@@ -84,6 +84,10 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 ### ML
 - `GET /api/v1/ml/models` — List station model trainers available in the backend image.
 - `POST /api/v1/ml/train` — Train and save a station variable model for a station/date range.
+- `GET /api/v1/ml/trained-models` — List saved station model artifacts and active selections.
+- `GET /api/v1/ml/trained-models/{model_id}` — Inspect a saved station model artifact.
+- `POST /api/v1/ml/trained-models/{model_id}/activate` — Mark a saved station model as active for its station/variable.
+- `DELETE /api/v1/ml/trained-models/{model_id}` — Delete a saved station model artifact.
 - `POST /api/v1/model/reload` — Reload the recommender model after offline training.
 
 ### Comarcas & Geo

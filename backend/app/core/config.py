@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     model_path: str = Field(default="/models/recommender.joblib", alias="MODEL_PATH")
     station_model_dir: str = Field(
-        default="app/services/models/stations",
+        default="/models/stations",
         alias="STATION_MODEL_DIR",
     )
     
