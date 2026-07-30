@@ -15,6 +15,14 @@ from app.services.user.email_utils import send_email
 router = APIRouter(prefix="/auth", tags=["auth"])
 """Authentication and user management endpoints."""
 
+def _send_verification_email(user: User, db: Session) -> None:
+    token = generate_email_token(user.id, token_type="email_verification")
+    user.verification_token = token
+    db.commit()
+
+    verify_url = f"{settings.frontend_base_url}/verify-email?token={token}"
+    send_email(user.email, "Verify your email", f"Click to verify: {verify_url}")
+
 @router.post("/register", response_model=MeOut)
 def register(payload: RegisterIn, db: Session = Depends(get_session)):
     """
@@ -44,13 +52,7 @@ def register(payload: RegisterIn, db: Session = Depends(get_session)):
     db.add(u)
     db.commit()
     db.refresh(u)
-    
-    token = generate_email_token(u.id, token_type="email_verification")
-    u.verification_token = token
-    db.commit()
-    
-    verify_url = f"{settings.frontend_base_url}/verify-email?token={token}"
-    send_email(u.email, "Verify your email", f"Click to verify: {verify_url}")
+    _send_verification_email(u, db)
 
     return u
 
@@ -67,12 +69,20 @@ def token(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
         TokenOut: JWT access token.
 
     Raises:
-        HTTPException: If credentials are invalid or user is inactive.
+        HTTPException: If credentials are invalid, user is inactive, or email is unverified.
     """
     # OAuth2PasswordRequestForm uses form fields: username + password
     user = db.execute(select(User).where(User.email == form.username)).scalar_one_or_none()
-    if not user or not user.is_active or not verify_password(form.password, user.password_hash) or not user.is_verified:
+    if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
+    if not user.is_verified:
+        _send_verification_email(user, db)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email is not verified. A new verification link has been sent.",
+        )
 
     user.last_login = datetime.now(timezone.utc)
     db.commit()
