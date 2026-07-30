@@ -1,9 +1,14 @@
+import asyncio
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
 from app.db.session import SessionLocal, get_session
-from app.db.models import StationMeasurement, User
+from app.db.models import MeteocatStation, StationMeasurement, User
 from app.workers.celery_app import celery_app
-from app.services.ml.train import train_and_save_model, fetch_all_stations
+from app.services.providers.meteocat import meteocat_client
 from sqlalchemy import select, func
-from datetime import datetime, timezone, timedelta
+
+CATALONIA_TZ = ZoneInfo("Europe/Madrid")
 
 
 @celery_app.task
@@ -14,6 +19,8 @@ def train_all_station_models():
     For each station, determines the available date range of measurements and
     trains a precipitation prediction model using XGBoost, saving the model to disk.
     """
+    from app.services.ml.train import fetch_all_stations, train_and_save_model
+
     stations = fetch_all_stations()
     db = SessionLocal()
     try:
@@ -27,6 +34,7 @@ def train_all_station_models():
             )
     finally:
         db.close()
+
 
 def get_station_date_range(station_code: str, db):
     """
@@ -49,6 +57,87 @@ def get_station_date_range(station_code: str, db):
     min_str = min_date.strftime("%Y-%m-%d") if min_date else None
     max_str = max_date.strftime("%Y-%m-%d") if max_date else None
     return min_str, max_str
+
+
+def _recent_completed_dates(now: datetime, days: int) -> list[date]:
+    """Return the latest completed Catalonia calendar dates before now."""
+    end_date = now.astimezone(CATALONIA_TZ).date()
+    current = end_date - timedelta(days=days)
+    dates: list[date] = []
+
+    while current < end_date:
+        dates.append(current)
+        current += timedelta(days=1)
+
+    return dates
+
+
+@celery_app.task
+def update_meteocat_station_data(days: int = 1, station_limit: int | None = None):
+    """
+    Refresh Meteocat measured variable values for all known stations.
+
+    By default, this updates the latest completed one-day Catalonia period based on
+    datetime.now(CATALONIA_TZ).
+    """
+    if days <= 0:
+        raise ValueError("days must be greater than 0")
+    if station_limit is not None and station_limit <= 0:
+        raise ValueError("station_limit must be greater than 0")
+
+    async def run():
+        period_end = datetime.now(CATALONIA_TZ)
+        period_start = period_end - timedelta(days=days)
+        dates_to_fetch = _recent_completed_dates(period_end, days)
+
+        with SessionLocal() as db:
+            stmt = select(MeteocatStation.codi).order_by(MeteocatStation.codi)
+            if station_limit is not None:
+                stmt = stmt.limit(station_limit)
+            station_codes = list(db.execute(stmt).scalars().all())
+
+        failures = []
+        updated_station_days = 0
+
+        for station_code in station_codes:
+            for target_date in dates_to_fetch:
+                try:
+                    await meteocat_client.fetch_and_store_station_variable_values(
+                        station_code,
+                        target_date.year,
+                        target_date.month,
+                        target_date.day,
+                    )
+                    updated_station_days += 1
+                except Exception as exc:
+                    failures.append(
+                        {
+                            "station_code": station_code,
+                            "date": target_date.isoformat(),
+                            "error": str(exc),
+                        }
+                    )
+
+        status = "ok"
+        if failures:
+            status = "failed" if updated_station_days == 0 else "partial"
+        elif not station_codes:
+            status = "no_stations"
+
+        return {
+            "status": status,
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "days": days,
+            "dates": [target_date.isoformat() for target_date in dates_to_fetch],
+            "stations": len(station_codes),
+            "updated_station_days": updated_station_days,
+            "failed_station_days": len(failures),
+            "failures": failures[:25],
+        }
+
+    return asyncio.run(run())
+
 
 @celery_app.task
 def deactivate_inactive_users(days: int = 90):
@@ -124,8 +213,6 @@ def capture_station_forecast_snapshots(limit: int | None = None):
     Store Open-Meteo forecasts for Meteocat station locations.
     Run this every 6 or 12 hours so forecast accuracy can be calculated later.
     """
-    import asyncio
-
     from app.db.session import SessionLocal
     from app.services.station_analytics.forecast_accuracy import (
         capture_openmeteo_forecasts_for_all_stations,

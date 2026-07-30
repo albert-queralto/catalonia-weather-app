@@ -42,6 +42,7 @@ A full-stack web application focused on Catalonia, providing real-time weather, 
 - Refresh radar timestamps
 - Refresh alerts
 - Cache comarca forecasts (hourly)
+- Update Meteocat station measurements daily for the latest completed Catalonia day
 - Schedules adjustable in `backend/app/workers/celery_app.py`
 
 ---

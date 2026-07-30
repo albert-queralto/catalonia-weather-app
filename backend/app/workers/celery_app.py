@@ -38,6 +38,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=0, hour="*/6"),
         "args": (None,),
     },
+    "update-meteocat-station-data-daily": {
+        "task": "app.workers.tasks.update_meteocat_station_data",
+        "schedule": crontab(hour=2, minute=15),  # every day at 02:15 UTC
+        "kwargs": {"days": 1},
+    },
     # "refresh-radar-timestamps-every-5-min": {
     #     "task": "app.workers.tasks.refresh_radar_timestamps",
     #     "schedule": 300.0,
