@@ -4,88 +4,92 @@ import subprocess
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.db.session import SessionLocal, get_session
-from app.db.models import MeteocatStation, StationMeasurement, User
+from app.db.models import MeteocatStation, User
 from app.workers.celery_app import celery_app
 from app.services.providers.meteocat import meteocat_client
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 CATALONIA_TZ = ZoneInfo("Europe/Madrid")
 
 
-@celery_app.task
-def train_all_station_models(
-    target_variable: str = "Precipitació",
+def _run_station_model_training(
+    *,
+    target_variable: str = "Precipitation",
     model_name: str = "xgboost",
-):
-    """
-    Celery task to train and save machine learning models for all weather stations.
+    station_codes: list[str] | None = None,
+    station_limit: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    task: Any | None = None,
+) -> dict[str, Any]:
+    from app.services.ml import train_station_models_batch
 
-    For each station, determines the available date range of measurements and
-    trains a precipitation prediction model using XGBoost, saving the model to disk.
-    """
-    from app.services.ml.train import fetch_all_stations, train_and_save_model
-
-    trained = 0
-    skipped = 0
-    failures = []
+    def publish_progress(meta: dict[str, Any]) -> None:
+        if task is not None:
+            try:
+                task.update_state(state="PROGRESS", meta=meta)
+            except Exception:
+                pass
 
     with SessionLocal() as db:
-        stations = fetch_all_stations(db)
-        for st in stations:
-            station_code = st["codi"]
-            date_from, date_to = get_station_date_range(station_code, db)
-            if not date_from or not date_to:
-                skipped += 1
-                continue
-
-            try:
-                train_and_save_model(
-                    station_code,
-                    date_from,
-                    date_to,
-                    target_variable,
-                    model_name,
-                    db,
-                )
-                trained += 1
-            except Exception as exc:
-                failures.append({"station_code": station_code, "error": str(exc)})
-
-    return {
-        "status": "ok" if not failures else "partial",
-        "stations": len(stations),
-        "trained": trained,
-        "skipped": skipped,
-        "failed": len(failures),
-        "failures": failures[:25],
-    }
+        return train_station_models_batch(
+            db,
+            target_variable=target_variable,
+            model_name=model_name,
+            station_codes=station_codes,
+            station_limit=station_limit,
+            date_from=date_from,
+            date_to=date_to,
+            progress_callback=publish_progress,
+        )
 
 
-def get_station_date_range(station_code: str, db):
+@celery_app.task(bind=True, name="app.workers.tasks.train_station_models")
+def train_station_models(
+    self,
+    target_variable: str = "Precipitation",
+    model_name: str = "xgboost",
+    station_codes: list[str] | None = None,
+    station_limit: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, Any]:
     """
-    Get the minimum and maximum measurement dates for a given station.
+    Train and save station machine learning models in the Celery worker.
 
-    Args:
-        station_code (str): The code of the weather station.
-        db: SQLAlchemy database session.
-
-    Returns:
-        tuple[str | None, str | None]: (min_date, max_date) as 'YYYY-MM-DD' strings,
-        or (None, None) if no data is found.
+    If station_codes is omitted, all known Meteocat stations are trained. If
+    dates are omitted, each station uses the available range for target_variable.
     """
-    stmt = (
-        select(func.min(StationMeasurement.date), func.max(StationMeasurement.date))
-        .where(StationMeasurement.codi_estacio == station_code)
+    return _run_station_model_training(
+        target_variable=target_variable,
+        model_name=model_name,
+        station_codes=station_codes,
+        station_limit=station_limit,
+        date_from=date_from,
+        date_to=date_to,
+        task=self,
     )
-    result = db.execute(stmt)
-    min_date, max_date = result.one_or_none() or (None, None)
-    min_str = min_date.strftime("%Y-%m-%d") if min_date else None
-    max_str = max_date.strftime("%Y-%m-%d") if max_date else None
-    return min_str, max_str
+
+
+@celery_app.task(bind=True, name="app.workers.tasks.train_all_station_models")
+def train_all_station_models(
+    self,
+    target_variable: str = "Precipitation",
+    model_name: str = "xgboost",
+    station_limit: int | None = None,
+) -> dict[str, Any]:
+    """Backward-compatible task name for training all station models."""
+    return _run_station_model_training(
+        target_variable=target_variable,
+        model_name=model_name,
+        station_limit=station_limit,
+        task=self,
+    )
 
 
 def _recent_completed_dates(now: datetime, days: int) -> list[date]:

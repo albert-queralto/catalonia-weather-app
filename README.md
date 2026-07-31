@@ -43,6 +43,7 @@ A full-stack web application focused on Catalonia, providing real-time weather, 
 - Refresh alerts
 - Cache comarca forecasts (hourly)
 - Update Meteocat station measurements daily for the latest completed Catalonia day
+- Train station ML models weekly through Celery Beat
 - Schedules adjustable in `backend/app/workers/celery_app.py`
 
 ---
@@ -84,6 +85,8 @@ The sample GeoJSON includes the 42 comarques of Catalonia (Spain).
 ### ML
 - `GET /api/v1/ml/models` — List station model trainers available in the backend image.
 - `POST /api/v1/ml/train` — Train and save a station variable model for a station/date range.
+- `POST /api/v1/ml/train/stations/task` — Queue a Celery job to train station models in batch.
+- `GET /api/v1/ml/tasks/{task_id}` — Inspect Celery task state/progress/result for ML jobs.
 - `GET /api/v1/ml/trained-models` — List saved station model artifacts and active selections.
 - `GET /api/v1/ml/trained-models/{model_id}` — Inspect a saved station model artifact.
 - `POST /api/v1/ml/trained-models/{model_id}/activate` — Mark a saved station model as active for its station/variable.

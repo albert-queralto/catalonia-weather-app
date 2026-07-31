@@ -43,6 +43,14 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=2, minute=15),  # every day at 02:15 UTC
         "kwargs": {"days": 1},
     },
+    "train-station-models-weekly": {
+        "task": "app.workers.tasks.train_station_models",
+        "schedule": crontab(hour=3, minute=30, day_of_week="sun"),
+        "kwargs": {
+            "target_variable": "Precipitation",
+            "model_name": "xgboost",
+        },
+    },
     # "refresh-radar-timestamps-every-5-min": {
     #     "task": "app.workers.tasks.refresh_radar_timestamps",
     #     "schedule": 300.0,
@@ -58,9 +66,5 @@ celery_app.conf.beat_schedule = {
     # "evaluate-notification-rules-every-5-min": {
     #     "task": "app.workers.tasks.evaluate_notification_rules",
     #     "schedule": 300.0,
-    # },
-    # "train-all-station-models-weekly": {
-    #     "task": "app.workers.tasks.train_all_station_models",
-    #     "schedule": 300.0#crontab(hour=21, minute=0, day_of_week="sat"),  # every Saturday at 03:00 UTC
     # },
 }

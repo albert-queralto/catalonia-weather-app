@@ -6,6 +6,7 @@ from .train import (
     get_trained_model,
     list_trained_models,
     train_and_save_model,
+    train_station_models_batch,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "get_trained_model",
     "list_trained_models",
     "train_and_save_model",
+    "train_station_models_batch",
 ]

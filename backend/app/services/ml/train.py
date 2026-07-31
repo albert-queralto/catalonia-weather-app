@@ -6,7 +6,7 @@ import re
 import unicodedata
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable, Sequence
 
 import joblib
 import numpy as np
@@ -95,6 +95,157 @@ def fetch_all_stations(db: Session | None = None) -> list[dict[str, Any]]:
 
     with SessionLocal() as session:
         return fetch(session)
+
+
+def train_station_models_batch(
+    db: Session,
+    *,
+    target_variable: str | int = "Precipitation",
+    model_name: str = "xgboost",
+    station_codes: Sequence[str] | None = None,
+    station_limit: int | None = None,
+    date_from: str | date | datetime | None = None,
+    date_to: str | date | datetime | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Train station models in a batch, using each station's data range by default."""
+    if station_limit is not None and station_limit <= 0:
+        raise ValueError("station_limit must be greater than 0")
+
+    normalised_model_name = _normalise_model_name(model_name)
+    if normalised_model_name not in available_model_names():
+        raise ValueError(
+            f"Unsupported model '{model_name}'. Supported models: {', '.join(available_model_names())}"
+        )
+
+    start_override = _as_date(date_from) if date_from is not None else None
+    end_override = _as_date(date_to) if date_to is not None else None
+    if start_override and end_override and end_override < start_override:
+        raise ValueError("date_to must be greater than or equal to date_from")
+
+    started_at = datetime.now(timezone.utc)
+    stations = _fetch_training_stations(
+        db,
+        station_codes=station_codes,
+        station_limit=station_limit,
+    )
+    total = len(stations)
+    trained = 0
+    skipped = 0
+    trained_models: list[dict[str, Any]] = []
+    skipped_stations: list[dict[str, str]] = []
+    failures: list[dict[str, str]] = []
+
+    for index, station in enumerate(stations, start=1):
+        station_code = str(station["codi"])
+
+        def publish_progress() -> None:
+            if progress_callback is None:
+                return
+            progress_callback(
+                {
+                    "current": index,
+                    "total": total,
+                    "station_code": station_code,
+                    "trained": trained,
+                    "skipped": skipped,
+                    "failed": len(failures),
+                }
+            )
+
+        try:
+            range_start, range_end = station_variable_date_range(
+                db,
+                station_code=station_code,
+                target_variable=target_variable,
+            )
+            train_from = start_override or range_start
+            train_to = end_override or range_end
+
+            if train_from is None or train_to is None:
+                skipped += 1
+                skipped_stations.append(
+                    {
+                        "station_code": station_code,
+                        "reason": "No measurements found for target variable",
+                    }
+                )
+                publish_progress()
+                continue
+
+            result = train_and_save_model(
+                station_code,
+                train_from,
+                train_to,
+                target_variable,
+                normalised_model_name,
+                db,
+            )
+            trained += 1
+            trained_models.append(result)
+        except ValueError as exc:
+            skipped += 1
+            skipped_stations.append({"station_code": station_code, "reason": str(exc)})
+        except Exception as exc:
+            failures.append({"station_code": station_code, "error": str(exc)})
+
+        publish_progress()
+
+    finished_at = datetime.now(timezone.utc)
+    status = "ok"
+    if total == 0:
+        status = "no_stations"
+    elif failures and trained == 0:
+        status = "failed"
+    elif failures or skipped:
+        status = "partial"
+
+    return {
+        "status": status,
+        "target_variable": str(target_variable),
+        "model_name": normalised_model_name,
+        "date_from": start_override.isoformat() if start_override else None,
+        "date_to": end_override.isoformat() if end_override else None,
+        "stations": total,
+        "trained": trained,
+        "skipped": skipped,
+        "failed": len(failures),
+        "trained_models": trained_models,
+        "skipped_stations": skipped_stations[:50],
+        "failures": failures[:25],
+        "started_at": started_at.isoformat(),
+        "finished_at": finished_at.isoformat(),
+        "duration_seconds": round((finished_at - started_at).total_seconds(), 3),
+    }
+
+
+def station_variable_date_range(
+    db: Session,
+    *,
+    station_code: str,
+    target_variable: str | int,
+) -> tuple[date | None, date | None]:
+    variable = _resolve_station_variable(db, station_code, target_variable)
+    row = db.execute(
+        text(
+            """
+            SELECT
+                MIN(COALESCE(v.data, m.date)) AS first_seen,
+                MAX(COALESCE(v.data, m.date)) AS last_seen
+            FROM station_measurements m
+            JOIN station_variable_values v
+                ON v.measurement_id = m.id
+            WHERE m.codi_estacio = :station_code
+              AND v.codi_variable = :variable_code
+            """
+        ),
+        {
+            "station_code": station_code,
+            "variable_code": int(variable["codi"]),
+        },
+    ).mappings().one()
+
+    return _maybe_date(row["first_seen"]), _maybe_date(row["last_seen"])
 
 
 def list_trained_models() -> list[dict[str, Any]]:
@@ -299,6 +450,36 @@ def _as_date(value: str | date | datetime) -> date:
     if isinstance(value, date):
         return value
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def _maybe_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    return _as_date(value)
+
+
+def _fetch_training_stations(
+    db: Session,
+    *,
+    station_codes: Sequence[str] | None,
+    station_limit: int | None,
+) -> list[dict[str, Any]]:
+    cleaned_codes = [
+        str(code).strip()
+        for code in station_codes or []
+        if str(code).strip()
+    ]
+    if station_codes is not None and not cleaned_codes:
+        return []
+
+    stmt = select(MeteocatStation.codi, MeteocatStation.nom).order_by(MeteocatStation.codi)
+    if cleaned_codes:
+        stmt = stmt.where(MeteocatStation.codi.in_(cleaned_codes))
+    if station_limit is not None:
+        stmt = stmt.limit(station_limit)
+
+    rows = db.execute(stmt).all()
+    return [{"codi": row.codi, "nom": row.nom} for row in rows]
 
 
 def _normalise(value: Any) -> str:

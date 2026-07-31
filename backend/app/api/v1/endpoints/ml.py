@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +17,8 @@ from app.services.ml import (
     train_and_save_model,
 )
 from app.services.user.auth import require_role
+from app.workers.celery_app import celery_app
+from app.workers.tasks import train_station_models as train_station_models_task
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
@@ -27,6 +29,15 @@ class TrainStationModelIn(BaseModel):
     date_to: date
     target_variable: str = "Precipitation"
     model_name: str = "xgboost"
+
+
+class TrainStationModelsTaskIn(BaseModel):
+    station_codes: list[str] | None = None
+    station_limit: int | None = Field(default=None, gt=0)
+    date_from: date | None = None
+    date_to: date | None = None
+    target_variable: str = Field(default="Precipitation", min_length=1)
+    model_name: str = Field(default="xgboost", min_length=1)
 
 
 @router.get("/models")
@@ -43,6 +54,53 @@ def list_station_models() -> dict[str, Any]:
         "active_count": len(active),
         "models": models,
     }
+
+
+@router.post("/train/stations/task", status_code=202)
+def enqueue_station_model_training(
+    payload: TrainStationModelsTaskIn,
+    _admin: object = Depends(require_role("admin")),
+) -> dict[str, Any]:
+    kwargs = payload.model_dump()
+    kwargs["date_from"] = payload.date_from.isoformat() if payload.date_from else None
+    kwargs["date_to"] = payload.date_to.isoformat() if payload.date_to else None
+
+    try:
+        task = train_station_models_task.apply_async(kwargs=kwargs)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not enqueue station model training task: {exc}",
+        ) from exc
+
+    return {
+        "status": "queued",
+        "task_id": task.id,
+        "task_name": "app.workers.tasks.train_station_models",
+        "queued_at": datetime.now(timezone.utc).isoformat(),
+        "parameters": kwargs,
+    }
+
+
+@router.get("/tasks/{task_id}")
+def get_ml_task_status(
+    task_id: str,
+    _admin: object = Depends(require_role("admin")),
+) -> dict[str, Any]:
+    result = celery_app.AsyncResult(task_id)
+    response: dict[str, Any] = {
+        "task_id": task_id,
+        "state": result.state,
+    }
+
+    if result.state == "PROGRESS" and isinstance(result.info, dict):
+        response["progress"] = result.info
+    elif result.successful():
+        response["result"] = result.result
+    elif result.failed():
+        response["error"] = str(result.result)
+
+    return response
 
 
 @router.get("/trained-models/{model_id}")
