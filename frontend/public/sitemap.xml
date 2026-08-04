@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://catalonia-weather-app.albertqueralto.dev/</loc>
+  </url>
+
+  <url>
+    <loc>https://catalonia-weather-app.albertqueralto.dev/air-quality-map</loc>
+  </url>
+
+  <url>
+    <loc>https://catalonia-weather-app.albertqueralto.dev/episodis-oberts</loc>
+  </url>
+
+  <url>
+    <loc>https://catalonia-weather-app.albertqueralto.dev/suggest-activity</loc>
+  </url>
+
+  <url>
+    <loc>https://catalonia-weather-app.albertqueralto.dev/activities</loc>
+  </url>
+</urlset>
